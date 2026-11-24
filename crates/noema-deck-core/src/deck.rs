@@ -28,6 +28,8 @@ impl Deck {
         // Asking the login shell for its environment can take a second, so it
         // is asked now and not when the first pane opens.
         thread::spawn(login_environment);
+        // So is reading every installed font, for the Appearance sheet.
+        thread::spawn(crate::fonts::installed);
         Ok(Self { map: Mutex::new(Map::at(store)?), panes: Panes::default() })
     }
 

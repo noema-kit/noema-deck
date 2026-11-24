@@ -1,7 +1,7 @@
 //! `noema-deck`: the desktop window. Given a command, it is the command-line
 //! tool instead, so one program serves both.
 //!
-//! The interface in `ui/` reaches the core through the two commands below.
+//! The interface in `ui/` reaches the core through the commands below.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![expect(clippy::needless_pass_by_value, reason = "Tauri hands a command its arguments by value")]
@@ -13,6 +13,7 @@ use clap::Parser;
 use noema_deck_cli::Cli;
 use noema_deck_core::{
     Deck, Snapshot,
+    fonts::{self, Font},
     map::Request as MapRequest,
     pane::{Reply as PaneReply, Request as PaneRequest},
 };
@@ -29,6 +30,12 @@ fn map(deck: State<'_, Deck>, request: MapRequest) -> Result<Snapshot, String> {
 #[tauri::command(async)]
 fn pane(deck: State<'_, Deck>, request: PaneRequest) -> Result<PaneReply, String> {
     deck.pane(request).map_err(|error| format!("{error:#}"))
+}
+
+/// The installed typefaces, for the Appearance sheet.
+#[tauri::command(async)]
+fn fonts() -> &'static [Font] {
+    fonts::installed()
 }
 
 /// Ends a self-test: prints what the interface reported and exits.
@@ -57,7 +64,7 @@ fn main() -> Result<()> {
                 let _ = webview.eval(script);
             }
         })
-        .invoke_handler(tauri::generate_handler![map, pane, selftest_done])
+        .invoke_handler(tauri::generate_handler![map, pane, fonts, selftest_done])
         .run(tauri::generate_context!())?;
     Ok(())
 }

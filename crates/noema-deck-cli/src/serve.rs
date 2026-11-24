@@ -90,7 +90,7 @@ impl Server {
             return Response::text("403 Forbidden");
         }
         match (request.method.as_str(), request.path.as_str()) {
-            ("POST", route @ ("/map" | "/pane")) if request.is_json => {
+            ("POST", route @ ("/map" | "/pane" | "/fonts")) if request.is_json => {
                 match self.call(route, &request.body) {
                     Ok(body) => Response { status: "200 OK", kind: "application/json", body },
                     Err(error) => {
@@ -106,7 +106,9 @@ impl Server {
 
     fn call(&self, route: &str, body: &[u8]) -> Result<Vec<u8>> {
         let invalid = "Invalid request";
-        let answer = if route == "/pane" {
+        let answer = if route == "/fonts" {
+            serde_json::to_vec(noema_deck_core::fonts::installed())
+        } else if route == "/pane" {
             serde_json::to_vec(&self.deck.pane(serde_json::from_slice(body).context(invalid)?)?)
         } else {
             serde_json::to_vec(&self.deck.map(serde_json::from_slice(body).context(invalid)?)?)

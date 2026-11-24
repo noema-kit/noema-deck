@@ -11,12 +11,14 @@
 //! | [`store`] | Deck's own records, in one `SQLite` file |
 //! | [`map`] | The map as a whole, and the requests that change it |
 //! | [`pane`] | Shell panes on pseudoterminals |
+//! | [`fonts`] | The typefaces installed on this machine |
 //! | [`deck`] | One running Deck, shared by every window and connection |
 
 pub mod agent;
 pub mod deck;
 pub mod domain;
 pub mod folder;
+pub mod fonts;
 pub mod import;
 pub mod map;
 pub mod pane;
