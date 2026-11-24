@@ -9,7 +9,7 @@ use crate::{
     domain::DomainId,
     folder,
     session::{Session, SessionKey},
-    store::{OpenPanes, Store},
+    store::{Appearance, OpenPanes, Store},
 };
 
 /// Everything on the map at one moment.
@@ -27,6 +27,7 @@ pub struct Snapshot {
     pub last_folder: Option<String>,
     /// The panes open when Deck last stopped.
     pub panes: OpenPanes,
+    pub appearance: Appearance,
 }
 
 #[derive(Debug, Serialize)]
@@ -101,6 +102,7 @@ impl Snapshot {
             missing,
             last_folder: store.last_folder()?.as_deref().map(folder::label),
             panes: store.open_panes()?,
+            appearance: store.appearance()?,
         })
     }
 }

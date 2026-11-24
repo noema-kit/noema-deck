@@ -2,7 +2,11 @@
 
 use serde::Deserialize;
 
-use crate::{domain::DomainId, session::SessionKey, store::OpenPanes};
+use crate::{
+    domain::DomainId,
+    session::SessionKey,
+    store::{Appearance, OpenPanes},
+};
 
 /// A request about the map. Every one is answered with a fresh
 /// [`Snapshot`](super::Snapshot).
@@ -66,5 +70,9 @@ pub enum Request {
     /// Remember the panes open now, for the next run.
     KeepPanes {
         panes: OpenPanes,
+    },
+    /// Change how Deck looks.
+    SetAppearance {
+        appearance: Appearance,
     },
 }

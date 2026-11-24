@@ -6,7 +6,7 @@ mod domains;
 mod schema;
 mod settings;
 
-pub use self::settings::{Direction, Layout, OpenPane, OpenPanes};
+pub use self::settings::{Appearance, Direction, Layout, Mode, OpenPane, OpenPanes};
 
 use std::{
     env, fs,
