@@ -123,6 +123,7 @@ impl Server {
             Some("css") => "text/css",
             Some("js") => "text/javascript",
             Some("svg") => "image/svg+xml",
+            Some("json") => "application/json",
             _ => "application/octet-stream",
         };
         match fs::read(self.ui.join(name)) {

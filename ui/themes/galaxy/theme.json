@@ -1,0 +1,33 @@
+{
+  "name": "Galaxy",
+  "description": "A night sky: each domain a star of light over glowing gas, coloured by how recently it was worked on.",
+  "modes": ["dark"],
+  "swatch": {
+    "dark": ["#05060e", "#0a0c18", "#c9d7ff", "#e6c48a"]
+  },
+  "terminal": {
+    "dark": {
+      "background": "#0a0c18",
+      "foreground": "#e4dfd4",
+      "cursor": "#e6c48a",
+      "cursorAccent": "#0a0c18",
+      "selectionBackground": "rgba(142, 160, 220, 0.3)",
+      "black": "#1c2036",
+      "red": "#e0857a",
+      "green": "#9ccb98",
+      "yellow": "#e6c48a",
+      "blue": "#8ea2d8",
+      "magenta": "#b7a0dc",
+      "cyan": "#86c2cc",
+      "white": "#d6d1c6",
+      "brightBlack": "#4b5272",
+      "brightRed": "#ee9d92",
+      "brightGreen": "#b3dcae",
+      "brightYellow": "#f0d5a3",
+      "brightBlue": "#a9bbea",
+      "brightMagenta": "#cbb7ec",
+      "brightCyan": "#a0d6de",
+      "brightWhite": "#f2eee5"
+    }
+  }
+}

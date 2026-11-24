@@ -1,4 +1,4 @@
-//! Arranging the whole map as one galaxy, for a view of every domain at once.
+//! Arranging the whole map by depth around one centre, for a view of every domain at once.
 //!
 //! The root domains gather at the core. Each level of subdomains lies on a
 //! wider ring, so the distance from the middle says how deep a domain is

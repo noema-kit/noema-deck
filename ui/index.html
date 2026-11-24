@@ -7,9 +7,11 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="vendor/xterm.css">
   <link rel="stylesheet" href="style.css">
+  <link id="theme" rel="stylesheet" href="themes/noema/theme.css">
+  <script src="boot.js"></script>
 </head>
 <body>
-  <canvas id="sky" role="img" aria-label="Map of domains"></canvas>
+  <canvas id="map" role="img" aria-label="Map of domains"></canvas>
 
   <div id="empty" hidden>
     <p class="lead">No domains yet</p>
@@ -30,13 +32,16 @@
     </div>
     <span id="where" data-tauri-drag-region></span>
     <div class="map-tools">
-      <button id="arrange-map" type="button" title="Arrange every domain on rings" aria-label="Arrange the map">
+      <button id="arrange-map" type="button" title="Arrange every domain by depth" aria-label="Arrange the map">
         <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="8" r="5.5" stroke-dasharray="2 2.2"/><circle cx="8" cy="2.5" r="1"/><circle cx="13" cy="10.5" r="1"/><circle cx="3.2" cy="10.8" r="1"/></svg>
       </button>
       <button id="fit-map" type="button" title="Show every domain (⌘0)" aria-label="Show every domain">
         <svg viewBox="0 0 16 16"><path d="M2.5 6V3.5a1 1 0 0 1 1-1H6M10 2.5h2.5a1 1 0 0 1 1 1V6M13.5 10v2.5a1 1 0 0 1-1 1H10M6 13.5H3.5a1 1 0 0 1-1-1V10"/></svg>
       </button>
     </div>
+    <button id="show-settings" type="button" title="Appearance (⌘,)" aria-label="Appearance">
+      <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2"/><path d="M8 1.8v1.6M8 12.6v1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M1.8 8h1.6M12.6 8h1.6M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/></svg>
+    </button>
     <button id="show-help" type="button" title="Shortcuts" aria-label="Shortcuts">
       <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M6.4 6.4a1.7 1.7 0 1 1 2.3 1.6c-.5.2-.7.6-.7 1.1v.3M8 11.3v.1"/></svg>
     </button>
@@ -110,16 +115,55 @@
     </form>
   </div>
 
+  <div id="settings" hidden>
+    <form id="settings-sheet" class="sheet" aria-label="Appearance">
+      <header>
+        <h2>Appearance</h2>
+        <button id="close-settings" type="button" aria-label="Close" title="Close">
+          <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </header>
+      <div class="settings">
+        <h3>Theme</h3>
+        <div id="theme-choice" class="themes"></div>
+        <h3>Colour mode</h3>
+        <div id="mode-choice" class="segmented" role="group" aria-label="Colour mode">
+          <button type="button" data-mode="light">Light</button>
+          <button type="button" data-mode="system">Auto</button>
+          <button type="button" data-mode="dark">Dark</button>
+        </div>
+        <p id="mode-note" class="note"></p>
+        <h3>Interface font</h3>
+        <button id="interface-font" class="font-choice" type="button" aria-haspopup="listbox"></button>
+        <h3>Terminal font</h3>
+        <button id="terminal-font" class="font-choice" type="button" aria-haspopup="listbox"></button>
+        <p class="note">Prompt icons need a font marked Icons, such as a Nerd Font.</p>
+        <div class="pair">
+          <label>Size <input id="terminal-size" type="number" min="9" max="24" step="1"></label>
+          <label>Line height <input id="line-height" type="number" min="1" max="2" step="0.05"></label>
+        </div>
+        <pre id="font-preview"><span data-ansi="blue">~/noema</span> <span data-ansi="magenta"> main</span> <span data-ansi="green">❯</span> cargo test
+   <span data-ansi="green">Compiling</span> noema-deck v0.1.0
+    <span data-ansi="green">Finished</span> in 2.4s · 0O 1lI {}[]</pre>
+      </div>
+      <div id="font-menu" class="menu" hidden>
+        <input id="font-search" type="search" placeholder="Search fonts" aria-label="Search fonts" autocomplete="off" spellcheck="false">
+        <ul id="font-list" role="listbox"></ul>
+      </div>
+    </form>
+  </div>
+
   <dl id="help" hidden>
     <div><dt>Double-click the map</dt><dd>Add a domain</dd></div>
     <div><dt>Drag</dt><dd>Move a domain</dd></div>
     <div><dt>Shift-drag</dt><dd>Link a parent to a subdomain</dd></div>
-    <div><dt>Colour</dt><dd>Blue-white is recent, amber is quiet</dd></div>
+    <div><dt>Colour</dt><dd>Stronger is more recent</dd></div>
     <div><dt>⌘1, ⌘2</dt><dd>Map, terminal</dd></div>
     <div><dt>⌘B, ⌘K</dt><dd>Session list, search</dd></div>
     <div><dt>⌘D, ⇧⌘D</dt><dd>Split the pane right, down</dd></div>
     <div><dt>⌘0</dt><dd>Show every domain</dd></div>
     <div><dt>Double-click a session</dt><dd>Rename it</dd></div>
+    <div><dt>⌘,</dt><dd>Appearance</dd></div>
   </dl>
 
   <form id="namer" hidden>

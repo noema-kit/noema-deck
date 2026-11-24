@@ -1,0 +1,44 @@
+/* Galaxy: deep space. A near-black sky that the map fills with glowing gas and
+   far stars, warm starlight for words, indigo plates and champagne as the one
+   accent. Names are set in the system's serif, italic. */
+
+:root {
+  color-scheme: dark;
+  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+  --display-style: italic;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --canvas: #05060e;
+  --surface: #0a0c18;
+  --raised: #161a2e;
+  --ink: #ece7dc;
+  --muted: #8a91ad;
+  --accent: #e6c48a;
+  --on-accent: #0a0c18;
+  --accent-line: rgb(230 196 138 / 0.6);
+  --accent-wash: rgb(230 196 138 / 0.08);
+  --danger: #e48a7a;
+  --danger-wash: rgb(228 138 122 / 0.12);
+  --live: #e6c48a;
+  --ready: #e6c48a;
+  --quiet: #8ea2d8;
+  --line: rgb(142 160 220 / 0.13);
+  --field: rgb(142 160 220 / 0.06);
+  --scrim: rgb(5 6 14 / 0.6);
+  --shadow: 0 16px 44px rgb(0 0 0 / 0.6);
+  --primary-fill: rgb(230 196 138 / 0.14);
+  --primary-ink: #e6c48a;
+  --primary-line: rgb(230 196 138 / 0.5);
+
+  --map-canvas: #05060e;
+  --map-ink: #ece7dc;
+  --map-accent: #e6c48a;
+  --map-link: #8ea2d8;
+  --map-node: #ece7dc;
+  --map-faded: #8a91ad;
+  --map-live: #e6c48a;
+  --map-name: italic 400 13.5px var(--font-display);
+  --map-top: 500 16px var(--font-display);
+  --map-count: 600 10.5px var(--font-ui);
+}

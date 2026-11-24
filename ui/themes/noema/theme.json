@@ -1,0 +1,57 @@
+{
+  "name": "Noema",
+  "description": "Quiet Morandi colours from the Noema Kit mark, with the map as a graph in ink.",
+  "modes": ["light", "dark"],
+  "swatch": {
+    "light": ["#f4f3ef", "#fafaf8", "#26395a", "#445e7d"],
+    "dark": ["#1b1f25", "#21262d", "#c7d1df", "#9fb3cc"]
+  },
+  "terminal": {
+    "light": {
+      "background": "#fafaf8",
+      "foreground": "#2c3542",
+      "cursor": "#445e7d",
+      "cursorAccent": "#fafaf8",
+      "selectionBackground": "rgba(68, 94, 125, 0.18)",
+      "black": "#2c3542",
+      "red": "#a8645a",
+      "green": "#62805a",
+      "yellow": "#9c7f45",
+      "blue": "#4d6a8c",
+      "magenta": "#86698c",
+      "cyan": "#4f8183",
+      "white": "#cfccc5",
+      "brightBlack": "#737b86",
+      "brightRed": "#bb7a6f",
+      "brightGreen": "#76926d",
+      "brightYellow": "#b0935a",
+      "brightBlue": "#6582a3",
+      "brightMagenta": "#9b80a1",
+      "brightCyan": "#659799",
+      "brightWhite": "#e6e4df"
+    },
+    "dark": {
+      "background": "#21262d",
+      "foreground": "#dcdad5",
+      "cursor": "#9fb3cc",
+      "cursorAccent": "#21262d",
+      "selectionBackground": "rgba(159, 179, 204, 0.25)",
+      "black": "#2b313a",
+      "red": "#d0928a",
+      "green": "#a3b899",
+      "yellow": "#d2b682",
+      "blue": "#9fb3cc",
+      "magenta": "#b9a2bd",
+      "cyan": "#93bcbd",
+      "white": "#cfccc6",
+      "brightBlack": "#5f6875",
+      "brightRed": "#dda59d",
+      "brightGreen": "#b5c8ab",
+      "brightYellow": "#dec596",
+      "brightBlue": "#b4c5da",
+      "brightMagenta": "#c9b5cd",
+      "brightCyan": "#a8cbcc",
+      "brightWhite": "#f0eee9"
+    }
+  }
+}

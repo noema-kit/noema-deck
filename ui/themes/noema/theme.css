@@ -1,0 +1,74 @@
+/* Noema: the default theme. Quiet Morandi colours taken from the Noema Kit
+   mark (a slate blue ground, paper, mist and a navy graph), the system's own
+   typefaces, flat surfaces and hairlines. Slate blue is the one accent. */
+
+:root {
+  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-ui);
+  --display-style: normal;
+  --display-size: 0.86;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --map-name: 400 12px var(--font-ui);
+  --map-top: 600 13px var(--font-ui);
+  --map-count: 500 10px var(--font-ui);
+}
+
+:root[data-mode="light"] {
+  color-scheme: light;
+  --canvas: #f4f3ef;
+  --surface: #fafaf8;
+  --raised: #ebeae5;
+  --ink: #2c3542;
+  --muted: #737b86;
+  --accent: #445e7d;
+  --on-accent: #ffffff;
+  --accent-line: rgb(68 94 125 / 0.45);
+  --accent-wash: rgb(68 94 125 / 0.09);
+  --danger: #a8645a;
+  --danger-wash: rgb(168 100 90 / 0.1);
+  --live: #7d9474;
+  --ready: #b08d55;
+  --quiet: #a7b2c0;
+  --line: rgb(44 53 66 / 0.11);
+  --field: rgb(44 53 66 / 0.04);
+  --scrim: rgb(44 53 66 / 0.22);
+  --shadow: 0 12px 36px rgb(44 53 66 / 0.14), 0 1px 3px rgb(44 53 66 / 0.08);
+
+  --map-canvas: #f4f3ef;
+  --map-ink: #2c3542;
+  --map-accent: #445e7d;
+  --map-link: #bcc5cf;
+  --map-node: #26395a;
+  --map-faded: #b9c4d1;
+  --map-live: #7d9474;
+}
+
+:root[data-mode="dark"] {
+  color-scheme: dark;
+  --canvas: #1b1f25;
+  --surface: #21262d;
+  --raised: #2b313a;
+  --ink: #e4e2dd;
+  --muted: #9aa1aa;
+  --accent: #9fb3cc;
+  --on-accent: #1b1f25;
+  --accent-line: rgb(159 179 204 / 0.5);
+  --accent-wash: rgb(159 179 204 / 0.12);
+  --danger: #d0928a;
+  --danger-wash: rgb(208 146 138 / 0.12);
+  --live: #9db394;
+  --ready: #d2b17c;
+  --quiet: #66738a;
+  --line: rgb(199 209 223 / 0.1);
+  --field: rgb(199 209 223 / 0.05);
+  --scrim: rgb(10 12 16 / 0.55);
+  --shadow: 0 16px 44px rgb(0 0 0 / 0.45);
+
+  --map-canvas: #1b1f25;
+  --map-ink: #e4e2dd;
+  --map-accent: #9fb3cc;
+  --map-link: #46505d;
+  --map-node: #c7d1df;
+  --map-faded: #566272;
+  --map-live: #9db394;
+}

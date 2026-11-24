@@ -1,7 +1,9 @@
 // Interface for Noema Deck. The core owns every rule; this file sends requests,
-// hands each snapshot to the sky and fills the lists around it.
+// hands each snapshot to the map and fills the lists around it.
 
-import { Sky } from "./sky.js";
+import { MapView } from "./map.js";
+import { closeSettings, openSettings, setupSettings } from "./settings.js";
+import { apply, loadThemes, look, watch } from "./theme.js";
 
 const tauri = window.__TAURI__;
 // The narrowest, usual and widest a part beside the map can be dragged.
@@ -11,34 +13,7 @@ const LINGER = 2000; // A pane whose process ends sooner stays up, so what it pr
 const SETTLE = 5000; // Milliseconds a new pane spends drawing itself before its output counts as news.
 const CLICK = 220; // Milliseconds a click on a session waits, in case it is the first of a double click.
 const RECENT = 40; // Sessions the list shows before a search narrows it.
-const FONT = 'ui-monospace, "SF Mono", Menlo, Consolas, "Symbols Nerd Font Mono", monospace';
 const $ = (id) => document.getElementById(id);
-// The terminal's colours, drawn from the same night as the rest of Deck: soft
-// hues of equal weight on the panel colour, so a busy prompt sits in the scene.
-const TERMINAL = {
-  background: "#0a0c18",
-  foreground: "#e4dfd4",
-  cursor: "#e6c48a",
-  cursorAccent: "#0a0c18",
-  selectionBackground: "rgba(142, 160, 220, 0.3)",
-  black: "#1c2036",
-  red: "#e0857a",
-  green: "#9ccb98",
-  yellow: "#e6c48a",
-  blue: "#8ea2d8",
-  magenta: "#b7a0dc",
-  cyan: "#86c2cc",
-  white: "#d6d1c6",
-  brightBlack: "#4b5272",
-  brightRed: "#ee9d92",
-  brightGreen: "#b3dcae",
-  brightYellow: "#f0d5a3",
-  brightBlue: "#a9bbea",
-  brightMagenta: "#cbb7ec",
-  brightCyan: "#a0d6de",
-  brightWhite: "#f2eee5",
-};
-
 // Icons are drawn here, sixteen units square, so a button needs no word.
 const ICONS = {
   close: "M4 4l8 8M12 4l-8 8",
@@ -57,7 +32,7 @@ function icon(name) {
   return svg;
 }
 
-export const sky = new Sky($("sky"));
+export const map = new MapView($("map"));
 
 export const state = {
   snapshot: { domains: [], links: [], sessions: [], missing: [], panes: { open: [], layout: null } },
@@ -74,7 +49,7 @@ let drawn = ""; // The snapshot on screen, as the text it arrived in.
 
 // Requests
 
-/** Sends one request down a route: "map" for domains and sessions, "pane" for a terminal. */
+/** Sends one request down a route: "map" for domains and sessions, "pane" for a terminal, "fonts" for the installed typefaces. */
 async function send(route, request) {
   if (tauri) {
     try {
@@ -111,6 +86,7 @@ async function run(command, args) {
     [drawn, state.snapshot] = [text, snapshot];
     render();
   }
+  if (JSON.stringify(snapshot.appearance) !== JSON.stringify(look.wanted)) await apply(snapshot.appearance);
   return true;
 }
 
@@ -171,9 +147,9 @@ function toast(message, action) {
 
 const freeLeft = () => (state.listed ? state.widths.list : 0);
 const freeRight = () => innerWidth - ($("panel").hidden ? 0 : state.widths.panel);
-const fit = () => sky.fit(freeLeft(), freeRight());
+const fit = () => map.fit(freeLeft(), freeRight());
 /** ID of the domain drawn under a screen point, unless something covers the map there. */
-const domainUnder = (x, y) => (document.elementFromPoint(x, y) === $("sky") ? sky.starAt(x, y) : null);
+const domainUnder = (x, y) => (document.elementFromPoint(x, y) === $("map") ? map.domainAt(x, y) : null);
 
 export function show(view) {
   state.view = view;
@@ -251,11 +227,11 @@ function where() {
 
 function focus(id) {
   Object.assign(state, { focus: id, nested: false });
-  sky.mark({ focus: id });
+  map.mark({ focus: id });
   renderPanel();
   where();
   const domain = domainById(id);
-  if (domain) sky.bring(domain.x, domain.y, (freeLeft() + freeRight()) / 2, innerHeight / 2);
+  if (domain) map.bring(domain.x, domain.y, (freeLeft() + freeRight()) / 2, innerHeight / 2);
 }
 
 // Drawing
@@ -264,8 +240,8 @@ function focus(id) {
 function render() {
   const { domains, links } = state.snapshot;
   if (state.focus !== null && !domainById(state.focus)) state.focus = null;
-  sky.chart(domains, links);
-  sky.mark({ focus: state.focus });
+  map.chart(domains, links);
+  map.mark({ focus: state.focus });
   renderPanel();
   renderList();
   if (!$("picker").hidden) renderPicker();
@@ -400,14 +376,17 @@ const seen = (pane) => state.view === "shell" && shown.includes(pane) && documen
 function tick() {
   const now = Date.now();
   let ready = false;
+  const live = []; // Domains holding a session that printed something just now.
   for (const pane of panes) {
     if (seen(pane)) pane.unseen = false;
     const quiet = now - pane.heard >= QUIET;
     const mood = pane.ended ? "ended" : !quiet ? "active" : pane.unseen ? "ready" : "quiet";
     ready ||= mood === "ready";
     if (pane.dot) pane.dot.className = `dot ${mood}`;
+    if (mood === "active") live.push(...(sessionByKey(pane.key)?.domains ?? []));
   }
   $("show-shell").classList.toggle("ready", ready);
+  map.light(live);
 }
 
 setInterval(tick, 1000);
@@ -558,6 +537,7 @@ document.addEventListener("pointerdown", (event) => {
 });
 
 $("show-help").addEventListener("click", () => ($("help").hidden = !$("help").hidden));
+$("show-settings").addEventListener("click", openSettings);
 
 // Adding sessions from the agent's history to the focused domain
 
@@ -650,74 +630,74 @@ $("namer-input").addEventListener("blur", closeNamer);
 
 let drag = null;
 
-$("sky").addEventListener("pointerdown", (event) => {
+$("map").addEventListener("pointerdown", (event) => {
   if (event.button !== 0) return;
-  sky.hold();
+  map.hold();
   const [x, y] = [event.clientX, event.clientY];
-  const domain = domainById(sky.starAt(x, y));
+  const domain = domainById(map.domainAt(x, y));
   const kind = !domain ? "pan" : event.shiftKey ? "link" : "move";
   drag = { kind, domain, origin: domain && { x: domain.x, y: domain.y }, from: [x, y], x, y, moved: false };
-  $("sky").setPointerCapture(event.pointerId);
+  $("map").setPointerCapture(event.pointerId);
 });
 
-$("sky").addEventListener("pointermove", (event) => {
+$("map").addEventListener("pointermove", (event) => {
   const [x, y] = [event.clientX, event.clientY];
   if (!drag) {
-    const hover = sky.starAt(x, y);
-    $("sky").classList.toggle("over", hover !== null);
-    return sky.mark({ hover });
+    const hover = map.domainAt(x, y);
+    $("map").classList.toggle("over", hover !== null);
+    return map.mark({ hover });
   }
   const [dx, dy] = [x - drag.from[0], y - drag.from[1]];
   if (!drag.moved && Math.hypot(dx, dy) < 4) return;
   drag.moved = true;
-  $("sky").classList.add("dragging");
+  $("map").classList.add("dragging");
   if (drag.kind === "pan") {
-    sky.panBy(x - drag.x, y - drag.y);
+    map.panBy(x - drag.x, y - drag.y);
   } else if (drag.kind === "move") {
-    drag.domain.x = drag.origin.x + dx / sky.view.k;
-    drag.domain.y = drag.origin.y + dy / sky.view.k;
-    sky.redraw();
+    drag.domain.x = drag.origin.x + dx / map.view.k;
+    drag.domain.y = drag.origin.y + dy / map.view.k;
+    map.redraw();
   } else {
-    sky.mark({ rubber: { from: drag.domain.id, x, y }, drop: domainUnder(x, y) });
+    map.mark({ rubber: { from: drag.domain.id, x, y }, drop: domainUnder(x, y) });
   }
   [drag.x, drag.y] = [x, y];
 });
 
-$("sky").addEventListener("pointerup", async (event) => {
+$("map").addEventListener("pointerup", async (event) => {
   const done = drag;
   drag = null;
   if (!done) return;
-  $("sky").classList.remove("dragging");
-  sky.mark({ rubber: null, drop: null });
+  $("map").classList.remove("dragging");
+  map.mark({ rubber: null, drop: null });
   if (!done.moved) return focus(done.domain?.id ?? null);
   if (done.kind === "pan") {
-    sky.release();
+    map.release();
   } else if (done.kind === "move") {
     const { id: domain, x, y } = done.domain;
     if (await run("move_domain", { domain, x, y })) return;
     Object.assign(done.domain, done.origin);
-    sky.redraw();
+    map.redraw();
   } else {
     const child = domainUnder(event.clientX, event.clientY);
     if (child !== null && child !== done.domain.id) run("link", { parent: done.domain.id, child });
   }
 });
 
-$("sky").addEventListener("pointerleave", () => sky.mark({ hover: null }));
+$("map").addEventListener("pointerleave", () => map.mark({ hover: null }));
 
-$("sky").addEventListener("dblclick", (event) => {
-  if (sky.starAt(event.clientX, event.clientY) !== null) return;
-  const position = sky.toWorld(event.clientX, event.clientY);
+$("map").addEventListener("dblclick", (event) => {
+  if (map.domainAt(event.clientX, event.clientY) !== null) return;
+  const position = map.toWorld(event.clientX, event.clientY);
   openNamer(event.clientX, event.clientY, (text) => addDomain(text, { position }));
 });
 
-$("sky").addEventListener(
+$("map").addEventListener(
   "wheel",
   (event) => {
     event.preventDefault();
     // A pinch arrives as a wheel with the control key down, in much finer steps.
     const rate = event.ctrlKey ? 0.012 : 0.0018;
-    sky.zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * rate));
+    map.zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * rate));
   },
   { passive: false },
 );
@@ -741,7 +721,7 @@ async function arrangeMap() {
 /** Shows every domain in its new place, and lets each drift there from where it was. */
 function glide(from) {
   fit();
-  if (sky.still) return;
+  if (map.still) return;
   const domains = state.snapshot.domains;
   const start = new Map(from.map(([id, x, y]) => [id, [x, y]]));
   const end = new Map(domains.map(({ id, x, y }) => [id, [x, y]]));
@@ -755,7 +735,7 @@ function glide(from) {
       const [[x0, y0], [x1, y1]] = [start.get(domain.id) ?? end.get(domain.id), end.get(domain.id)];
       [domain.x, domain.y] = [x0 + (x1 - x0) * eased, y0 + (y1 - y0) * eased];
     }
-    sky.redraw();
+    map.redraw();
     if (t < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -787,7 +767,7 @@ function dropAt(x, y) {
   if (state.view === "map") {
     const domain = session ? domainUnder(x, y) : null;
     if (domain !== null) return { domain };
-    if (assignOnly || document.elementFromPoint(x, y) !== $("sky")) return null;
+    if (assignOnly || document.elementFromPoint(x, y) !== $("map")) return null;
     const top = $("top").getBoundingClientRect().bottom;
     return { rect: { left: freeLeft(), top, right: freeRight(), bottom: innerHeight } };
   }
@@ -817,7 +797,7 @@ function outline(drop) {
   const box = $("drop");
   const appearing = box.hidden;
   box.hidden = !drop?.rect;
-  sky.mark({ drop: drop?.domain ?? null });
+  map.mark({ drop: drop?.domain ?? null });
   if (!drop?.rect) return;
   // It glides between spots, but appears where it is.
   box.style.transition = appearing ? "none" : "";
@@ -1118,7 +1098,7 @@ async function startSession(domain, folder, name) {
 async function launch(pane, command, args) {
   try {
     const { rows, cols } = pane.term;
-    const reply = await paneCall(command, { ...args, rows, cols });
+    const reply = await paneCall(command, { ...args, rows, cols, light: look.mode === "light" });
     [pane.id, pane.born] = [reply.pane, Date.now()];
     return reply;
   } catch (error) {
@@ -1147,10 +1127,11 @@ function addPane(name, folder, key) {
 
   pane.term = new Terminal({
     cursorBlink: true,
-    fontFamily: FONT,
-    fontSize: 13,
     scrollback: 5000,
-    theme: TERMINAL,
+    // As VS Code does: text a prompt colours too close to its background is
+    // shifted until it reads, as white on a pale segment in a light theme.
+    minimumContrastRatio: 4.5,
+    ...look.terminal,
   });
   pane.fit = new FitAddon.FitAddon();
   pane.term.loadAddon(pane.fit);
@@ -1259,6 +1240,7 @@ const SHORTCUTS = {
   b: () => showList(!state.listed),
   d: () => split("row"),
   D: () => split("column"),
+  ",": () => ($("settings").hidden ? openSettings() : closeSettings()),
   k: () => {
     showList(true);
     $("list-search").focus();
@@ -1288,7 +1270,8 @@ document.addEventListener(
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  if (!$("picker").hidden) closePicker();
+  if (!$("settings").hidden) closeSettings();
+  else if (!$("picker").hidden) closePicker();
   else if (!$("starter").hidden) closeStarter();
   else if (!$("namer").hidden) closeNamer();
   else if (!$("help").hidden) $("help").hidden = true;
@@ -1319,10 +1302,22 @@ window.addEventListener("pagehide", () => {
 
 // The desktop window on macOS draws under its title bar, where the window's buttons sit.
 document.body.classList.toggle("overlaid", Boolean(tauri) && navigator.userAgent.includes("Mac"));
-document.fonts.load(`13px ${FONT}`, "\ue0b0").catch(() => {});
+// A new look repaints the map and restyles every terminal.
+watch(({ painter, terminal }) => {
+  map.paintWith(painter);
+  for (const pane of panes) {
+    Object.assign(pane.term.options, terminal);
+    pane.fit.fit();
+  }
+});
+setupSettings(
+  (appearance) => run("set_appearance", { appearance }),
+  () => send("fonts", {}),
+);
 setWidth("list", Number(kept("list-width")));
 setWidth("panel", Number(kept("panel-width")));
 showList(kept("list") !== "hidden");
 show("map");
-if ((await run("snapshot")) && sky.fresh) fit();
+await loadThemes();
+if ((await run("snapshot")) && map.fresh) fit();
 await reopen();

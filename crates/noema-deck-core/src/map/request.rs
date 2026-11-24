@@ -37,7 +37,7 @@ pub enum Request {
         x: f64,
         y: f64,
     },
-    /// Lay every domain out as one galaxy, roots at the core.
+    /// Lay every domain out by depth around one centre, roots at the core.
     Arrange,
     /// Move several domains at once, as undoing an arrangement does.
     MoveDomains {

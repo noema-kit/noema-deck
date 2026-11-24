@@ -2,7 +2,7 @@
 // happened. `scripts/selftest.sh` starts the app with fixtures in place of the
 // store, the sessions and Claude Code, and only then is this file loaded.
 
-import { panes, screenText, setWidth, showList, sky, state } from "./app.js";
+import { map, panes, screenText, setWidth, showList, state } from "./app.js";
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -37,7 +37,7 @@ const snapshot = () => invoke("map", { request: { command: "snapshot" } });
 
 /** Middle of a domain on the map, or of an element on the page. */
 function centre(thing) {
-  if (!(thing instanceof Element)) return sky.toScreen(thing.x, thing.y);
+  if (!(thing instanceof Element)) return map.toScreen(thing.x, thing.y);
   const box = thing.getBoundingClientRect();
   return [box.x + box.width / 2, box.y + box.height / 2];
 }
@@ -50,25 +50,25 @@ function pointer(target, type, [x, y], more = {}) {
 }
 
 async function clickDomain(name) {
-  pointer($("sky"), "pointerdown", centre(domain(name)));
-  pointer($("sky"), "pointerup", centre(domain(name)));
+  pointer($("map"), "pointerdown", centre(domain(name)));
+  pointer($("map"), "pointerup", centre(domain(name)));
   await until(`the panel for ${name}`, () => $("domain-name").value === name);
 }
 
 /** Presses on one domain, moves to another and lets go. */
 async function drag(from, to, more) {
   const [a, b] = [centre(from), centre(to)];
-  pointer($("sky"), "pointerdown", a, more);
-  pointer($("sky"), "pointermove", [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], more);
-  pointer($("sky"), "pointermove", b, more);
-  pointer($("sky"), "pointerup", b, more);
+  pointer($("map"), "pointerdown", a, more);
+  pointer($("map"), "pointermove", [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], more);
+  pointer($("map"), "pointermove", b, more);
+  pointer($("map"), "pointerup", b, more);
   await sleep(300);
 }
 
 /** Double-clicks the map at a fraction `x` across and `y` down the window. */
 function doubleClickMap(x, y) {
   const at = { bubbles: true, clientX: innerWidth * x, clientY: innerHeight * y };
-  $("sky").dispatchEvent(new MouseEvent("dblclick", at));
+  $("map").dispatchEvent(new MouseEvent("dblclick", at));
 }
 
 async function enterName(text) {
@@ -116,14 +116,20 @@ const steps = [
     await addRootDomain("Memory", 0.5, 0.7);
     expect(state.snapshot.domains.length === 3, "expected three domains");
   }],
-  ["every domain is painted as a point of light", async () => {
+  ["every domain is painted", async () => {
     await new Promise(requestAnimationFrame);
     await new Promise(requestAnimationFrame);
-    const scale = $("sky").width / $("sky").clientWidth;
+    const scale = $("map").width / $("map").clientWidth;
+    const ctx = $("map").getContext("2d");
+    const [r0, g0, b0] = ctx.getImageData(2, $("map").height - 2, 1, 1).data; // The bare map.
     for (const item of state.snapshot.domains) {
       const [x, y] = centre(item).map((at) => Math.round(at * scale));
-      const [red, green, blue] = $("sky").getContext("2d").getImageData(x, y, 1, 1).data;
-      expect(red + green + blue > 400, `${item.name} is dark at its middle`);
+      const { data } = ctx.getImageData(x - 6, y - 6, 13, 13);
+      let marked = false;
+      for (let at = 0; at < data.length; at += 4) {
+        marked ||= Math.abs(data[at] - r0) + Math.abs(data[at + 1] - g0) + Math.abs(data[at + 2] - b0) > 90;
+      }
+      expect(marked, `nothing marks ${item.name} on the map`);
     }
   }],
   ["shift-dragging links domains, and a domain can have two parents", async () => {
@@ -140,10 +146,10 @@ const steps = [
     const saved = async () => (await snapshot()).domains.find((item) => item.name === "AI");
     const before = await saved();
     const [x, y] = centre(domain("AI"));
-    pointer($("sky"), "pointerdown", [x, y]);
-    pointer($("sky"), "pointermove", [x + 30, y + 20]);
-    pointer($("sky"), "pointermove", [x + 60, y + 40]);
-    pointer($("sky"), "pointerup", [x + 60, y + 40]);
+    pointer($("map"), "pointerdown", [x, y]);
+    pointer($("map"), "pointermove", [x + 30, y + 20]);
+    pointer($("map"), "pointermove", [x + 60, y + 40]);
+    pointer($("map"), "pointerup", [x + 60, y + 40]);
     await sleep(300);
     const [nowX, nowY] = centre(domain("AI"));
     const moved = [Math.round(nowX - x), Math.round(nowY - y)];
@@ -319,7 +325,7 @@ const steps = [
     expect(holds("topics", "os") && holds("os", "kernel") && holds("os", "linux"), "the tree lost its shape");
     expect(holds("topics", "memory") && !id(".hidden"), "a folder was missed or a hidden one added");
   }],
-  ["arranging lays every domain out on rings, and undoing puts them back", async () => {
+  ["arranging lays every domain out by depth, and undoing puts them back", async () => {
     const places = () => state.snapshot.domains.map(({ x, y }) => [Math.round(x), Math.round(y)]);
     const before = JSON.stringify(places());
     $("arrange-map").click();
@@ -331,6 +337,35 @@ const steps = [
     expect(toast().startsWith("Arranged"), `the message was "${toast()}"`);
     $("toast").querySelector("button").click();
     await until("the old places", () => JSON.stringify(places()) === before);
+  }],
+  ["the appearance sheet changes the theme, mode and typeface, and the core keeps them", async () => {
+    const root = document.documentElement;
+    const kept = () => state.snapshot.appearance;
+    $("show-settings").click();
+    expect(!$("settings").hidden, "the sheet did not open");
+    const card = (theme) => $("theme-choice").querySelector(`[data-theme="${theme}"]`);
+    card("galaxy").click();
+    await until("the Galaxy theme", () => root.dataset.theme === "galaxy" && kept().theme === "galaxy");
+    expect(root.dataset.mode === "dark" && $("mode-note").textContent, "Galaxy did not keep to its dark mode");
+    card("noema").click();
+    $("mode-choice").querySelector('[data-mode="light"]').click();
+    await until("Noema in light", () => root.dataset.theme === "noema" && root.dataset.mode === "light");
+    await until("the light mode kept", () => kept().theme === "noema" && kept().mode === "light");
+    const ground = getComputedStyle(document.body).backgroundColor;
+    expect(ground === "rgb(244, 243, 239)", `the page's ground is ${ground}`);
+    // Fonts are chosen from those installed, which macOS always has Menlo among.
+    const option = async (name) => {
+      $("terminal-font").click();
+      return until(`${name} in the menu`, () => [...$("font-list").children].find((row) => row.textContent === name));
+    };
+    (await option("Menlo")).click();
+    await until("the typeface kept", () => kept().terminal_font === "Menlo");
+    expect(getComputedStyle(root).getPropertyValue("--font-mono").includes("Menlo"), "terminals kept their typeface");
+    expect($("terminal-font").textContent === "Menlo" && $("font-menu").hidden, "the menu did not show the choice");
+    (await option("Theme default")).click();
+    $("mode-choice").querySelector('[data-mode="system"]').click();
+    await until("the default look", () => kept().terminal_font === null && kept().mode === "system");
+    $("close-settings").click();
   }],
   ["a session is renamed by a double click on its row, in the agent's own records", async () => {
     const title = row("recent-list", "Beta").querySelector(".title");
@@ -352,7 +387,7 @@ export async function run(hold) {
   // A made-up pointer cannot be captured, and a glide would move the map
   // while the next step aims at it.
   Element.prototype.setPointerCapture = () => {};
-  sky.still = true;
+  map.still = true;
 
   // The window opens on someone's desk. Their own pointer, wheel and keys are
   // kept out of the page, so a stray move cannot disturb a step.
