@@ -1,52 +1,62 @@
 # Design
 
-Deck arranges Claude Code sessions on a universe of topic stars, and opens them in shell panes. [Architecture](architecture.md) says how it is built.
+Deck organises Claude Code sessions by domain and runs them in terminal panes. [Architecture](architecture.md) says how it is built.
 
 ## Model
 
-Deck stores three kinds of record. Sessions stay with the agent that created them, and Deck keeps no copy.
-
 | Record | Content |
 | --- | --- |
-| Star | A stable ID, a name and a position on the map. |
-| Link | A larger star and a smaller star. |
-| Placement | A star and a session key: the agent's name and the session's own ID. |
+| Domain | A stable ID, a name and a position on the map. |
+| Link | A parent domain and a subdomain. |
+| Assignment | A domain and a session key: the agent's name and the session's own ID. |
 
-- **Top stars.** A star with no larger star is a top star. There is no centre: a universe has a few, such as System, AI and PL.
-- **Links.** Every link has a larger and a smaller end; equal stars are never linked. A star may have several larger stars. A link that would place a star under itself is refused.
-- **Placements.** A session may sit on several stars. A session on no star is unsorted.
-- **Counts.** A star counts the distinct sessions on it and on every star beneath it.
-- **Deleting a star.** Its links and placements go with it. A smaller star left without a larger star moves up to the deleted star's larger stars, or becomes a top star. Sessions are never deleted.
-- **Missing sessions.** A placed session the agent no longer lists is marked missing, with an offer to remove the placement.
+- **Sessions** stay with the agent. Deck keeps no copy, and shows a session only once it is assigned.
+- **Root domains** have no parent. There is no single root.
+- **Links** never form a loop. A domain may have several parents.
+- **Assignments.** A session may belong to several domains.
+- **Counts.** A domain counts the distinct sessions in it and in its subdomains.
+- **Deleting a domain** removes its links and assignments. A subdomain left without a parent moves up to the deleted domain's parents. Sessions are never deleted.
+- **Missing sessions.** An assigned session the agent no longer lists is marked missing and can be removed.
 
-## Universe
+## Window
 
-The map is a night sky, with pan and zoom. It starts empty.
+The map or the terminal fills the window. A rail on the left switches between them.
 
-- **Stars.** A star is drawn as light: a white core, a bloom and four thin spikes. Its count sets its size. Its latest session sets its colour, from blue-white today to dim amber after three months of quiet.
-- **Names.** A name keeps one size at every zoom. Where two would overlap, the top star's or the fuller star's is shown.
-- **Focus.** Selecting a star centres it, highlights its links and opens its sessions.
-- **Editing.** Add a top star in empty space or a smaller star under a star. Rename, move, link by dragging from a larger star to a smaller one, unlink and delete.
-- **Import.** A folder's path given in place of a name adds that folder as a star, with the folders inside it as smaller stars, two levels deep.
-- **Motion.** A focus glides, a zoom eases and a pan coasts. With reduced motion set on the system, each is a jump.
+| Part | Content |
+| --- | --- |
+| Map | Domains drawn as stars on a night sky, with pan and zoom. Size follows the session count. Colour follows recency, from blue-white to amber over three months. |
+| Domain panel | The selected domain: name, parents, subdomains and sessions. |
+| Session list | Open panes with their state, then recent assigned sessions. Search covers every assigned session. |
+| Terminal | One pane, or two side by side or stacked. Other open panes keep running out of sight. |
+
+- **Resizing.** The session list, the domain panel and the divider between two panes drag by their edges. The list can be hidden. Sizes are remembered.
+- **Title bar.** On macOS the interface draws under the title bar, and its top edge drags and zooms the window.
+
+## Map
+
+- **Editing.** Add, rename, move, link, unlink and delete domains.
+- **Import.** A folder path given as a name adds the folder and two levels inside it as domains.
+- **Reassigning.** A session dragged from the panel onto another domain is assigned there too.
 
 ## Sessions
 
-- **Star panel.** The focused star's sessions, most recent first, optionally with those of smaller stars. Open a session or remove it from the star.
-- **Unsorted tray.** Every session on no star. Search by title or folder, then drag sessions onto a star.
-- **New session.** From a star, choose a folder. Deck starts Claude Code with a session ID it chose and places the session on that star. Claude Code stores a session at its first prompt, so one closed before that leaves the star.
+- **New session.** Choose a domain and a folder. The session is assigned at once. Claude Code stores a session at its first prompt, so one closed before that is dropped.
+- **Add existing.** A picker over the agent's whole history assigns past sessions to the selected domain.
+- **State.** An open pane is active when it wrote output in the last three seconds, and quiet otherwise.
 
-## Shell
+## Terminal
 
-Deck has no chat interface. Opening a session opens a shell pane inside Deck's window that runs Claude Code in the session's folder, with the environment of the user's login shell.
-
-- Two panes can sit side by side, and the map stays one key away.
-- Closing a pane stops the Claude Code process. The session remains and can be reopened.
-- Deck does not guard against a session being open in another client. The agent handles that.
+- **Panes.** A pane runs Claude Code on a session, or the user's login shell. Deck has no chat interface.
+- **Split.** Splitting right or down opens a shell beside the current pane, in the same folder. A session can also open beside another.
+- **Closing.** A pane closes when its process exits, and closing a pane stops its process. One that fails within two seconds stays, so its output can be read. The session remains and can be reopened.
+- **Theme.** Deck's terminal is dark. A light Claude Code theme is swapped for its dark counterpart in a pane, for that run only.
+- **Icons.** A bundled Nerd Fonts symbol font draws prompt icons the terminal font lacks.
+- **Other clients.** Deck does not guard against a session being open elsewhere. The agent handles that.
 
 ## Later
 
 - **More agents.** Codex and OpenCode.
-- **Star prompts.** A prompt per star, inherited by sessions started on the stars beneath it.
-- **Skills, system load and memory.** Browse agent skills, watch host load, and review Noema memory.
-- **Session links.** Fork, reference and handoff relations between sessions.
+- **Settings.** Terminal font and theme.
+- **Domain prompts.** A prompt per domain, inherited by sessions started in its subdomains.
+- **Skills, system load and memory.**
+- **Session links.** Fork, reference and handoff relations.
