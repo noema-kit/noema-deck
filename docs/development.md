@@ -27,7 +27,7 @@ cargo test --workspace
 scripts/selftest.sh
 ```
 
-The self-test opens the real window and drives the map, the session list, terminal panes, a new session and an import from inside the page. It uses a fixture store, fixture sessions and a stand-in for Claude Code, so it reads and changes nothing of yours.
+The self-test opens the real window and drives the map, the session list, terminal panes, a new session, an import and the Appearance sheet from inside the page. It uses a fixture store, fixture sessions and a stand-in for Claude Code, so it reads and changes nothing of yours.
 
 ## Conventions
 
@@ -41,5 +41,4 @@ The self-test opens the real window and drives the map, the session list, termin
 | Files | Note |
 | --- | --- |
 | `ui/vendor/xterm*` | xterm.js with its fit and WebGL add-ons. [Source and licence](../ui/vendor/xterm.SOURCE.md) |
-| `ui/vendor/fonts/` | Newsreader, Instrument Sans and the Nerd Fonts symbols. [Source and licence](../ui/vendor/fonts/SOURCE.md) |
-| `crates/noema-deck/icons/*.png`, `icon.icns` | Rendered from `icon.svg` by `scripts/icons.sh`, which needs `rsvg-convert`. |
+| `crates/noema-deck/icons/*.png`, `icon.icns` | Rendered from `icon.svg`, the Noema Kit mark, by `scripts/icons.sh`, which needs `rsvg-convert`. `ui/icon.svg` is the same mark with the margin cut away. |
