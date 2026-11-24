@@ -29,6 +29,21 @@ scripts/selftest.sh
 
 The self-test opens the real window and drives the map, the session list, terminal panes, a new session, an import and the Appearance sheet from inside the page. It uses a fixture store, fixture sessions and a stand-in for Claude Code, so it reads and changes nothing of yours.
 
+## Release
+
+Set the version in `Cargo.toml` and `crates/noema-deck/tauri.conf.json`, commit, then push a tag that names it:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The Release workflow builds one app for Apple silicon and Intel, packs it in a disk image and publishes it as the tag's release, with notes drawn from the commits. The app is signed ad hoc, not with a Developer ID, and is not notarised. To build the same disk image here for this Mac alone:
+
+```sh
+cd crates/noema-deck && npx @tauri-apps/cli@2.12.6 build --bundles app,dmg
+```
+
 ## Conventions
 
 - **Rules live in the core.** A new behaviour starts as a core function with a test. The interface only draws.

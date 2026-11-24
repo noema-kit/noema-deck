@@ -28,7 +28,9 @@ Deck is the first part of [Noema Kit](https://github.com/noema-kit), a set of to
 
 ## Run
 
-Requires Rust 1.95 and Claude Code.
+Download the macOS app from [Releases](https://github.com/noema-kit/noema-deck/releases). It is not notarised, so open it once, then choose **Open Anyway** in System Settings → Privacy & Security. Claude Code must be installed.
+
+To build from source, install Rust 1.95 and Claude Code.
 
 ```sh
 cargo run -p noema-deck         # the desktop window
