@@ -1,0 +1,56 @@
+[workspace]
+members = ["crates/*"]
+# The desktop app pulls in a web view, so everyday builds and tests leave it out.
+default-members = ["crates/noema-deck-core", "crates/noema-deck-cli"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+repository = "https://github.com/noema-kit/noema-deck"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Every fallible function returns `anyhow::Result`, whose message says what failed.
+missing_errors_doc = "allow"
+# Counts become coordinates only when laying stars out, far below 2^52.
+cast_precision_loss = "allow"
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"
+
+[workspace.dependencies]
+noema-deck-cli = { path = "crates/noema-deck-cli" }
+noema-deck-core = { path = "crates/noema-deck-core" }
+
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+parking_lot = "0.12"
+portable-pty = "0.9"
+rusqlite = { version = "0.39", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = "2"
+tauri-build = "2"
+tempfile = "3"
+uuid = { version = "1", features = ["v4"] }
+
+# Listing sessions scans megabytes of transcripts, which an unoptimised build
+# takes seconds over. Everything but the thin program crates is optimised.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.noema-deck-core]
+opt-level = 3
+
+[profile.release]
+strip = true
+lto = "thin"

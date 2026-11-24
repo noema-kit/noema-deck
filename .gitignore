@@ -1,0 +1,3 @@
+/target/
+/crates/noema-deck/gen/
+.DS_Store
