@@ -128,25 +128,28 @@ pub fn clean_title(title: &str) -> Option<String> {
     (!title.is_empty()).then_some(title)
 }
 
-/// Fits `launch` to a pane, whose terminal is dark. A person who chose one of
-/// Claude Code's light themes gets its dark counterpart for this run only.
-/// Their own settings are left alone.
+/// Fits `launch` to a pane, whose terminal is light or dark. A person whose
+/// Claude Code theme is of the other kind gets its counterpart, for this run
+/// only. Their own settings are left alone.
 #[must_use]
-pub fn for_pane(mut launch: Launch) -> Launch {
-    if let Some(theme) = config_dir().ok().and_then(|config| dark_counterpart(&config)) {
+pub fn for_pane(mut launch: Launch, light: bool) -> Launch {
+    if let Some(theme) = config_dir().ok().and_then(|config| counterpart(&config, light)) {
         let settings = serde_json::json!({ "theme": theme });
         launch.args.extend(["--settings".into(), settings.to_string()]);
     }
     launch
 }
 
-/// The dark theme matching the light one chosen in the Claude Code folder
-/// `config`, if a light one is chosen there.
-fn dark_counterpart(config: &Path) -> Option<String> {
+/// The theme matching the one chosen in the Claude Code folder `config` for
+/// a light or a dark terminal, when the chosen one is of the other kind.
+/// Claude Code is dark unless a theme is chosen.
+fn counterpart(config: &Path, light: bool) -> Option<String> {
     // The theme is in the settings file, or in the older file beside the folder.
     let beside = config.with_file_name(".claude.json");
-    let chosen = [config.join("settings.json"), beside].iter().find_map(|file| theme(file))?;
-    Some(format!("dark{}", chosen.strip_prefix("light")?))
+    let chosen = [config.join("settings.json"), beside].iter().find_map(|file| theme(file));
+    let chosen = chosen.unwrap_or_else(|| "dark".into());
+    let (from, to) = if light { ("dark", "light") } else { ("light", "dark") };
+    Some(format!("{to}{}", chosen.strip_prefix(from)?))
 }
 
 /// The theme a Claude Code settings file names, if it can be read and has one.
@@ -432,18 +435,21 @@ mod tests {
     }
 
     #[test]
-    fn a_light_theme_has_a_dark_counterpart_for_panes() -> Result<()> {
+    fn a_theme_of_the_other_kind_has_a_counterpart_for_panes() -> Result<()> {
         let root = tempfile::tempdir()?;
         let config = root.path().join("claude");
         fs::create_dir(&config)?;
-        assert_eq!(dark_counterpart(&config), None);
+        assert_eq!(counterpart(&config, false), None);
+        assert_eq!(counterpart(&config, true).as_deref(), Some("light"));
 
         fs::write(root.path().join(".claude.json"), r#"{"theme":"light"}"#)?;
-        assert_eq!(dark_counterpart(&config).as_deref(), Some("dark"));
+        assert_eq!(counterpart(&config, false).as_deref(), Some("dark"));
+        assert_eq!(counterpart(&config, true), None);
         fs::write(config.join("settings.json"), r#"{"theme":"light-daltonized","other":1}"#)?;
-        assert_eq!(dark_counterpart(&config).as_deref(), Some("dark-daltonized"));
+        assert_eq!(counterpart(&config, false).as_deref(), Some("dark-daltonized"));
         fs::write(config.join("settings.json"), r#"{"theme":"dark-ansi"}"#)?;
-        assert_eq!(dark_counterpart(&config), None);
+        assert_eq!(counterpart(&config, false), None);
+        assert_eq!(counterpart(&config, true).as_deref(), Some("light-ansi"));
         Ok(())
     }
 

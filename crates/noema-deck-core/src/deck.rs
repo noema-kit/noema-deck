@@ -43,18 +43,18 @@ impl Deck {
     pub fn pane(&self, request: pane::Request) -> Result<pane::Reply> {
         let mut reply = pane::Reply::default();
         match request {
-            pane::Request::Open { session, rows, cols } => {
+            pane::Request::Open { session, rows, cols, light } => {
                 let launch = {
                     let map = self.map.lock();
                     let session =
                         map.session(&session).context("That session is no longer listed")?;
-                    claude::for_pane(claude::open(session)?)
+                    claude::for_pane(claude::open(session)?, light)
                 };
                 reply.pane = Some(self.panes.open(&launch, login_environment(), rows, cols)?);
             }
-            pane::Request::Start { domain, folder, name, rows, cols } => {
+            pane::Request::Start { domain, folder, name, rows, cols, light } => {
                 let (key, launch) = self.map.lock().plan_start(domain, &folder, name.as_deref())?;
-                let launch = claude::for_pane(launch);
+                let launch = claude::for_pane(launch, light);
                 let pane = self.panes.open(&launch, login_environment(), rows, cols)?;
                 let recorded = self.map.lock().record_start(
                     domain,

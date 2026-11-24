@@ -146,6 +146,13 @@ fn command(launch: &Launch, environment: Option<&[(String, String)]>) -> Command
     }
     command.env("TERM", "xterm-256color");
     command.env("COLORTERM", "truecolor");
+    // A desktop app starts without a locale, and a shell without one counts
+    // each byte of an accented letter or an icon as a character. A terminal
+    // sets one when the profile does not.
+    let locale = ["LC_ALL", "LC_CTYPE", "LANG"];
+    if !locale.iter().any(|name| command.get_env(name).is_some_and(|value| !value.is_empty())) {
+        command.env("LANG", "en_US.UTF-8");
+    }
     command
 }
 
@@ -271,5 +278,16 @@ mod tests {
 
         assert!(read_all(&panes, pane)?.contains("set-nohome-xterm-256color"));
         Ok(())
+    }
+
+    #[test]
+    fn a_pane_has_a_locale_and_keeps_the_profiles_own() {
+        let launch = shell("true");
+        let lang = |environment: &[(String, String)]| {
+            command(&launch, Some(environment)).get_env("LANG").map(std::ffi::OsStr::to_owned)
+        };
+        assert_eq!(lang(&[]), Some("en_US.UTF-8".into()));
+        assert_eq!(lang(&[("LANG".into(), "C.UTF-8".into())]), Some("C.UTF-8".into()));
+        assert_eq!(lang(&[("LC_ALL".into(), "de_DE.UTF-8".into())]), None);
     }
 }

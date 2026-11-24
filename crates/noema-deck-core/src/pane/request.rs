@@ -14,6 +14,9 @@ pub enum Request {
         session: SessionKey,
         rows: u16,
         cols: u16,
+        /// Whether the pane's terminal is light, so the agent can match it.
+        #[serde(default)]
+        light: bool,
     },
     /// Start a new session on a domain, in a new pane. Answered with the pane's
     /// ID and the session's key.
@@ -24,6 +27,8 @@ pub enum Request {
         name: Option<String>,
         rows: u16,
         cols: u16,
+        #[serde(default)]
+        light: bool,
     },
     /// Run the user's own shell in a folder, in a new pane. Answered with the
     /// pane's ID.
