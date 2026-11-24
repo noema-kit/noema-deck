@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-32 -32 64 64">
+  <!-- One star as the map draws it: a white core, a bloom and four thin spikes. -->
+  <defs>
+    <radialGradient id="bloom" cx="0" cy="0" r="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset="0.11" stop-color="#fff"/>
+      <stop offset="0.17" stop-color="#e6ebff" stop-opacity="0.85"/>
+      <stop offset="0.3" stop-color="#c9d7ff" stop-opacity="0.36"/>
+      <stop offset="0.55" stop-color="#aabfff" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#aabfff" stop-opacity="0"/>
+    </radialGradient>
+    <path id="spike" d="M0-1.7Q7-.5 30 0Q7 .5 0 1.7Z" fill="#fff"/>
+  </defs>
+  <rect x="-32" y="-32" width="64" height="64" rx="14" fill="#05060d"/>
+  <circle r="26" fill="url(#bloom)"/>
+  <use xlink:href="#spike"/>
+  <use xlink:href="#spike" transform="rotate(90)"/>
+  <use xlink:href="#spike" transform="rotate(180)"/>
+  <use xlink:href="#spike" transform="rotate(270)"/>
+</svg>

@@ -1,0 +1,356 @@
+/* Deep space: a near-black sky that the canvas fills with glowing gas and far
+   stars, warm starlight for words and one gold accent. The map is the one loud
+   thing. Everything around it stays quiet. */
+
+@font-face {
+  font-family: "Newsreader";
+  src: url("vendor/fonts/newsreader-latin-wght-normal.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  src: url("vendor/fonts/newsreader-latin-wght-italic.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("vendor/fonts/instrument-sans-latin-wght-normal.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: block;
+}
+
+:root {
+  /* The canvas reads the first three, so they stay six-digit colours. */
+  --starlight: #f4f0e6; /* Words and star names. */
+  --gold: #f1cc7a; /* Focus, counts and the one accent. */
+  --link: #96aae1; /* Links between stars. */
+  --space: #04050b; /* The sky behind everything. */
+  --plate: #090b16; /* Panels and terminals. */
+  --raised: #181c33; /* Hover and chips. */
+  --dust: #949cba; /* Secondary text. */
+  --ember: #f08d77; /* Refusals and deleting. */
+  --hair: rgb(150 166 225 / 0.17);
+  --field: rgb(150 166 225 / 0.07); /* Inputs and rows under the pointer. */
+  --serif: "Newsreader", "Iowan Old Style", Palatino, Georgia, serif;
+  --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--space);
+  color: var(--starlight);
+  font: 13.5px/1.45 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+[hidden] { display: none !important; }
+
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+
+:focus-visible { outline: 1.5px solid var(--gold); outline-offset: 2px; }
+
+/* The sky */
+
+#sky {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--space);
+  cursor: grab;
+  touch-action: none;
+}
+
+#sky.over { cursor: pointer; }
+#sky.dragging { cursor: grabbing; }
+
+#empty {
+  position: fixed;
+  top: 42%;
+  left: 314px;
+  right: 12px;
+  text-align: center;
+  color: var(--dust);
+  pointer-events: none;
+}
+
+#empty p { margin: 0; }
+#empty .lead { margin-bottom: 6px; color: var(--starlight); font: italic 400 30px var(--serif); }
+.focused #empty, .focused #key { right: 372px; }
+
+#key {
+  position: fixed;
+  left: 314px;
+  right: 12px;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 28px;
+  margin: 0;
+  padding: 30px 12px 16px;
+  /* The sky dims under the key, so a star behind it does not tangle with the words. */
+  background: linear-gradient(transparent, rgb(4 5 11 / 0.82) 55%);
+  color: var(--dust);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+#key div { display: flex; gap: 7px; }
+#key dt { color: var(--starlight); opacity: 0.8; }
+#key dd { margin: 0; font-style: italic; font-family: var(--serif); font-size: 13px; }
+
+/* Plates: the tray and the star panel */
+
+#tray, #panel {
+  position: fixed;
+  top: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  /* Solid rather than blurred glass: a blur is worked out again on every frame
+     the sky moves, and a clear panel lets the names behind it show through. */
+  background: var(--plate);
+}
+
+#tray { left: 12px; width: 290px; }
+#panel { right: 12px; width: 348px; padding-top: 16px; }
+
+#tray header { padding: 14px 14px 12px; }
+
+h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  font: 500 19px/1.1 var(--serif);
+}
+
+h2 span { color: var(--gold); font: italic 400 15px var(--serif); }
+
+input:not([type="checkbox"]) {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--hair);
+  border-radius: 5px;
+  background: var(--field);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+input::placeholder { color: var(--dust); opacity: 0.75; }
+input:not([type="checkbox"]):focus-visible { outline: none; border-color: var(--gold); }
+
+#star-name {
+  width: auto;
+  height: 38px;
+  margin: 0 8px;
+  padding: 0 8px;
+  border-color: transparent;
+  background: none;
+  font: 500 26px/1 var(--serif);
+}
+
+#star-name:hover, #star-name:focus-visible { border-color: var(--hair); background: var(--field); }
+
+.note { margin: 2px 16px 0; color: var(--dust); font-size: 12.5px; }
+#tray-note { margin: 10px 14px 12px; }
+
+#star-links { display: grid; gap: 6px; margin: 12px 16px 0; }
+.link-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--dust); font-size: 12.5px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border-radius: 4px;
+  background: var(--raised);
+  font: italic 400 13.5px/1.5 var(--serif);
+}
+
+.chip button { border: 0; background: none; font: inherit; }
+.chip .go { padding: 0 2px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip .go:hover { color: var(--gold); }
+.chip .drop { padding: 0 7px 0 3px; color: var(--dust); font: 400 14px var(--sans); }
+.chip .drop:hover { color: var(--ember); }
+.chip.plain { padding: 0 7px; color: var(--dust); background: none; border: 1px solid var(--hair); }
+
+.actions, #starter { display: flex; gap: 6px; margin: 14px 16px 0; }
+#starter { margin-top: 8px; }
+
+.actions button, #starter button {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 13px;
+  border: 1px solid var(--hair);
+  border-radius: 5px;
+  background: none;
+  white-space: nowrap;
+}
+
+.actions button:hover, #starter button:hover { border-color: var(--link); background: var(--raised); }
+.actions .primary, #starter button { border-color: var(--starlight); background: var(--starlight); color: var(--plate); font-weight: 600; }
+.actions .primary:hover, #starter button:hover { border-color: #fff; background: #fff; }
+.actions .danger { margin-left: auto; color: var(--ember); }
+.actions .danger:hover { border-color: var(--ember); background: rgb(240 141 119 / 0.12); }
+
+.check { display: flex; align-items: center; gap: 8px; margin: 14px 16px 10px; color: var(--dust); font-size: 12.5px; }
+.check input { accent-color: var(--gold); }
+
+/* Session rows */
+
+.sessions { flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+
+.session {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1px 10px;
+  align-items: baseline;
+  padding: 9px 14px;
+  border-top: 1px solid var(--hair);
+  cursor: grab;
+  /* A long list lays out and paints only the rows in view. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 54px;
+}
+
+.session:hover { background: var(--field); }
+.session.selected { background: rgb(241 204 122 / 0.11); box-shadow: inset 2px 0 var(--gold); }
+.session.missing { cursor: default; color: var(--dust); font-style: italic; }
+.session .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.session .folder, .session .when { color: var(--dust); font-size: 12px; white-space: nowrap; }
+.session .folder { overflow: hidden; text-overflow: ellipsis; }
+.session .chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.session .tools { display: flex; gap: 2px; }
+
+.session .tools button {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--dust);
+  font-size: 12px;
+}
+
+.session:hover .open, .session .open:focus-visible { border-color: var(--hair); color: var(--starlight); }
+.session .open:hover { border-color: var(--gold); color: var(--gold); }
+.session .remove { padding: 0 6px; font-size: 15px; line-height: 1; }
+.session .remove:hover { color: var(--ember); }
+
+/* Shell panes */
+
+#views {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 7;
+  display: flex;
+  transform: translateX(-50%);
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  background: var(--plate);
+  overflow: hidden;
+}
+
+#views button {
+  height: 30px;
+  padding: 0 18px;
+  border: 0;
+  background: none;
+  color: var(--dust);
+  font: 500 15px var(--serif);
+}
+
+#views button + button { border-left: 1px solid var(--hair); }
+#views button.on { background: var(--raised); color: var(--starlight); box-shadow: inset 0 -2px var(--gold); }
+
+#shell {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  gap: 10px;
+  padding: 54px 12px 12px;
+  background: var(--space);
+}
+
+.pane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: var(--plate);
+}
+
+.pane.active { border-color: rgb(241 204 122 / 0.5); }
+.pane header { display: flex; align-items: baseline; gap: 12px; padding: 8px 8px 7px 14px; border-bottom: 1px solid var(--hair); }
+.pane .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 16px var(--serif); }
+.pane .sub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dust); font-size: 12px; }
+
+.pane .close {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--dust);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.pane .close:hover { background: var(--raised); color: var(--ember); }
+.pane .term { flex: 1; min-height: 0; padding: 8px 2px 4px 10px; }
+
+/* Floating pieces */
+
+#namer { position: fixed; z-index: 3; width: 300px; }
+#namer input { height: 34px; border-color: var(--gold); background: var(--plate); box-shadow: 0 10px 30px rgb(0 0 0 / 0.5); font: italic 400 16px var(--serif); }
+
+#ghost {
+  position: fixed;
+  z-index: 8;
+  max-width: 260px;
+  padding: 4px 10px;
+  overflow: hidden;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: var(--raised);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#toast {
+  position: fixed;
+  bottom: 48px;
+  left: 50%;
+  z-index: 9;
+  max-width: min(560px, 80vw);
+  padding: 9px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--ember);
+  border-radius: 5px;
+  background: #21131a;
+  color: #ffe1d8;
+}

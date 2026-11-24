@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Noema Deck</title>
+  <link rel="icon" href="star.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/xterm.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="sky" role="img" aria-label="Universe of topic stars"></canvas>
+
+  <div id="empty" hidden>
+    <p class="lead">An empty sky</p>
+    <p>Double-click anywhere to place your first star.</p>
+  </div>
+
+  <dl id="key" aria-label="How to edit the map">
+    <div><dt>Double-click the sky</dt><dd>new star</dd></div>
+    <div><dt>Drag a star</dt><dd>move it</dd></div>
+    <div><dt>Shift-drag star to star</dt><dd>link them</dd></div>
+    <div><dt>Blue-white to amber</dt><dd>worked on lately to long quiet</dd></div>
+  </dl>
+
+  <section id="tray" aria-label="Unsorted sessions">
+    <header>
+      <h2>Unsorted <span id="tray-count"></span></h2>
+      <input id="tray-search" type="search" placeholder="Search by title or folder" aria-label="Search unsorted sessions">
+    </header>
+    <ul id="tray-list" class="sessions"></ul>
+    <p id="tray-note" class="note"></p>
+  </section>
+
+  <aside id="panel" aria-label="Focused star" hidden>
+    <input id="star-name" aria-label="Star name" spellcheck="false">
+    <p id="star-meta" class="note"></p>
+    <div id="star-links"></div>
+    <div class="actions">
+      <button id="new-session" type="button" class="primary">New session</button>
+      <button id="add-smaller" type="button">Add smaller star</button>
+      <button id="delete-star" type="button" class="danger">Delete star</button>
+    </div>
+    <form id="starter" hidden>
+      <input id="starter-folder" list="folders" placeholder="Folder, such as ~/project" aria-label="Folder for the new session" autocomplete="off" spellcheck="false">
+      <datalist id="folders"></datalist>
+      <button type="submit">Start</button>
+    </form>
+    <label class="check"><input id="with-smaller" type="checkbox"> Include smaller stars</label>
+    <ul id="star-sessions" class="sessions"></ul>
+  </aside>
+
+  <section id="shell" aria-label="Open sessions" hidden></section>
+  <nav id="views" aria-label="Views" hidden>
+    <button id="show-map" type="button" title="Map (⌘1 or Ctrl+1)">Map</button>
+    <button id="show-shell" type="button" title="Shell (⌘2 or Ctrl+2)">Shell</button>
+  </nav>
+
+  <form id="namer" hidden>
+    <input id="namer-input" placeholder="Star name, or a folder to import" aria-label="New star name, or a folder to import" autocomplete="off" spellcheck="false">
+  </form>
+  <div id="ghost" hidden></div>
+  <div id="toast" role="status" hidden></div>
+
+  <script src="vendor/xterm.js"></script>
+  <script src="vendor/xterm-addon-fit.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

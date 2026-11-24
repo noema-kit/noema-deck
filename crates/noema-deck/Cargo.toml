@@ -1,0 +1,22 @@
+[package]
+name = "noema-deck"
+description = "A desktop workbench that arranges Claude Code sessions on a universe of topic stars"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+noema-deck-cli.workspace = true
+noema-deck-core.workspace = true
+tauri.workspace = true
