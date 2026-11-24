@@ -2,7 +2,7 @@
 // happened. `scripts/selftest.sh` starts the app with fixtures in place of the
 // store, the sessions and Claude Code, and only then is this file loaded.
 
-import { screenText, setWidth, showList, sky, state } from "./app.js";
+import { panes, screenText, setWidth, showList, sky, state } from "./app.js";
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -27,7 +27,7 @@ function expect(holds, otherwise) {
 const domain = (name) => state.snapshot.domains.find((item) => item.name === name);
 const count = (name) => domain(name)?.sessions.length ?? 0;
 const links = () => state.snapshot.links.length;
-const toast = () => ($("toast").hidden ? "" : $("toast").textContent);
+const toast = () => ($("toast").hidden ? "" : $("toast").firstChild.textContent);
 const terminal = () => screenText(0);
 const onScreen = () => document.querySelectorAll(".pane:not([hidden])").length;
 const titles = (list) => [...$(list).querySelectorAll(".title")].map((node) => node.textContent);
@@ -75,6 +75,17 @@ async function enterName(text) {
   await until("the name box", () => !$("namer").hidden);
   $("namer-input").value = text;
   $("namer").requestSubmit();
+}
+
+/** Carries `node` by the pointer to a screen point and lets go. */
+async function carryTo(node, [x, y]) {
+  const from = centre(node);
+  pointer(node, "pointerdown", from);
+  for (const step of [0.3, 0.7, 1]) {
+    pointer(document.body, "pointermove", [from[0] + (x - from[0]) * step, from[1] + (y - from[1]) * step]);
+  }
+  pointer(document.body, "pointerup", [x, y]);
+  await sleep(100);
 }
 
 async function giveName(text) {
@@ -169,8 +180,8 @@ const steps = [
   ["opening a session fills the window with its terminal, and typing reaches the agent", async (hold) => {
     row("recent-list", "Alpha").click();
     await until("the agent's first line", () => terminal().includes("fake agent --resume"));
-    const box = $("shell").getBoundingClientRect();
-    expect(box.top === 0 && box.bottom === innerHeight && box.right === innerWidth, "the terminal left a margin");
+    const [box, top] = [$("shell").getBoundingClientRect(), $("top").getBoundingClientRect()];
+    expect(box.top === top.bottom && box.bottom === innerHeight && box.right === innerWidth, "the terminal left a margin");
     const input = document.querySelector(".pane .xterm-helper-textarea");
     input.focus();
     const typed = { data: "hello\r", inputType: "insertText", bubbles: true };
@@ -185,31 +196,43 @@ const steps = [
     key("2", { metaKey: true });
     expect(!$("shell").hidden, "the terminal did not come back");
     key("b", { metaKey: true });
-    expect($("shell").getBoundingClientRect().left === 44, "the list stayed");
+    expect($("shell").getBoundingClientRect().left === 0, "the list stayed");
     key("b", { metaKey: true });
-    expect($("shell").getBoundingClientRect().left === 292, "the list did not come back");
+    expect($("shell").getBoundingClientRect().left === 248, "the list did not come back");
   }],
-  ["a second session opens beside the first, and hiding one keeps it running", async () => {
-    row("recent-list", "Beta").querySelector('[title="Open beside"]').click();
+  ["a session carried to a pane's right edge opens beside it, and hiding one keeps it running", async () => {
+    const alpha = document.querySelector(".pane:not([hidden])").getBoundingClientRect();
+    await carryTo(row("recent-list", "Beta"), [alpha.right - 20, alpha.top + alpha.height / 2]);
     await until("two terminals", () => onScreen() === 2);
     await until("both agents", () => screenText(1).includes("fake agent --resume"));
 
     // The edge between them moves the split, and the list's edge its width.
-    const [first, box] = [document.querySelector(".pane.first"), $("shell").getBoundingClientRect()];
-    pointer($("divider"), "pointerdown", [box.left + box.width / 2, 300]);
-    pointer($("divider"), "pointermove", [box.left + box.width * 0.3, 300]);
-    pointer($("divider"), "pointerup", [box.left + box.width * 0.3, 300]);
+    const [divider, box] = [document.querySelector(".divider"), $("shell").getBoundingClientRect()];
+    const first = divider.previousElementSibling;
+    pointer(divider, "pointerdown", [box.left + box.width / 2, 300]);
+    pointer(divider, "pointermove", [box.left + box.width * 0.3, 300]);
+    pointer(divider, "pointerup", [box.left + box.width * 0.3, 300]);
     const share = first.getBoundingClientRect().width / box.width;
     expect(Math.abs(share - 0.3) < 0.02, `the first pane took ${share.toFixed(2)} of the width`);
-    pointer($("list-edge"), "pointerdown", [292, 300]);
-    pointer($("list-edge"), "pointermove", [344, 300]);
-    pointer($("list-edge"), "pointerup", [344, 300]);
-    expect($("shell").getBoundingClientRect().left === 344, "the list kept its width");
+    pointer($("list-edge"), "pointerdown", [248, 300]);
+    pointer($("list-edge"), "pointermove", [300, 300]);
+    pointer($("list-edge"), "pointerup", [300, 300]);
+    expect($("shell").getBoundingClientRect().left === 300, "the list kept its width");
     setWidth("list");
 
     document.querySelector('.pane:not([hidden]) [title^="Hide"]').click();
     expect(onScreen() === 1, `${onScreen()} terminals were on screen`);
     expect(titles("open-list").length === 2, `open sessions were ${titles("open-list")}`);
+  }],
+  ["a session that writes out of sight is marked ready, and the open panes are kept", async () => {
+    const alpha = panes.find((pane) => pane.title.textContent === "Alpha");
+    expect(alpha.node.hidden, "Alpha was still on screen");
+    await until("Alpha to settle", () => Date.now() - alpha.born > 5200, 8000);
+    await invoke("pane", { request: { command: "write", args: { pane: alpha.id, data: "ping\r" } } });
+    await until("Alpha to be ready", () => row("open-list", "Alpha")?.querySelector(".dot.ready"), 8000);
+    expect($("show-shell").classList.contains("ready"), "the terminal button showed nothing");
+    const { open, layout } = (await snapshot()).panes;
+    expect(open.length === 2 && layout === 1, `the panes kept were ${JSON.stringify({ open, layout })}`);
   }],
   ["closing the last session returns to the map", async () => {
     for (const title of ["Alpha", "Beta"]) row("open-list", title).querySelector(".close").click();
@@ -232,18 +255,52 @@ const steps = [
     await sleep(2000);
     type("exit\r");
     await until("the shell's pane to close", () => onScreen() === 1 && titles("open-list").join() === "Alpha");
-    row("open-list", "Alpha").querySelector(".close").click();
-    await until("the map", () => $("shell").hidden);
+  }],
+  ["a split divides only its own pane, so panes tile in rows and columns", async () => {
+    document.querySelector('.pane:not([hidden]) [title^="Split down"]').click();
+    await until("a shell below", () => onScreen() === 2);
+    const shellPane = () => [...document.querySelectorAll(".pane:not([hidden])")].find((node) => node.querySelector(".title").textContent === "Shell");
+    shellPane().querySelector('[title^="Split right"]').click();
+    await until("a third pane", () => onScreen() === 3);
+    const [alpha, left, right] = [...document.querySelectorAll(".pane:not([hidden])")].map((node) => node.getBoundingClientRect());
+    expect(left.top >= alpha.bottom && right.top === left.top && right.left >= left.right, "the shells did not sit side by side below");
+    expect(Math.abs(alpha.width - (right.right - left.left)) < 2, "the session above did not keep the full width");
+    expect(document.querySelectorAll(".divider").length === 2, "expected an edge between each pair");
+  }],
+  ["a pane carried onto another's top edge moves above it", async () => {
+    const visible = () => [...document.querySelectorAll(".pane:not([hidden])")];
+    const named = (text) => visible().find((node) => node.querySelector(".title").textContent === text);
+    const [shell] = visible().filter((node) => node.querySelector(".title").textContent === "Shell").slice(-1);
+    const alpha = named("Alpha").getBoundingClientRect();
+    await carryTo(shell.querySelector("header"), [alpha.left + alpha.width / 2, alpha.top + 12]);
+    expect(onScreen() === 3, `${onScreen()} terminals were on screen`);
+    const [moved, under] = [shell.getBoundingClientRect(), named("Alpha").getBoundingClientRect()];
+    expect(moved.bottom <= under.top + 1 && Math.abs(moved.width - under.width) < 2, "the shell did not move above Alpha");
+    expect($("drop").hidden, "the drop outline stayed");
+  }],
+  ["a shell is renamed by a double click on its title", async () => {
+    const title = [...document.querySelectorAll(".pane:not([hidden]) .title")].find((node) => node.textContent === "Shell");
+    title.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const input = title.querySelector("input");
+    input.value = "Logs";
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await until("the name in the list", () => titles("open-list").includes("Logs"));
+    const kept = (await snapshot()).panes.open.map((item) => item.name).filter(Boolean);
+    expect(kept.join() === "Logs", `the names kept were ${kept}`);
+    for (const node of [...$("open-list").querySelectorAll(".close")]) node.click();
+    await until("the map", () => $("shell").hidden && !document.querySelector(".pane"));
   }],
   ["a new session joins its domain at once", async () => {
     $("start-here").click();
     await until("the folder box", () => !$("starter").hidden && $("starter-folder").value);
     const chosen = $("starter-domain").selectedOptions[0].textContent;
     expect(chosen === "Memory", `the domain offered was ${chosen}`);
+    $("starter-name").value = "Named start";
     $("starter").requestSubmit();
     await until("the agent's first line", () => terminal().includes("fake agent --session-id"));
+    expect(terminal().includes("--name Named start"), "the name did not reach the agent");
     await until("the session in Memory", () => count("Memory") === 3);
-    expect(titles("domain-sessions").includes("New session"), `sessions were ${titles("domain-sessions")}`);
+    expect(titles("domain-sessions").includes("Named start"), `sessions were ${titles("domain-sessions")}`);
   }],
   ["a new session that never got a prompt leaves its domain", async () => {
     document.querySelector(".pane .close").click();
@@ -261,6 +318,33 @@ const steps = [
     const holds = (parent, child) => linked.some(([a, b]) => a === id(parent) && b === id(child));
     expect(holds("topics", "os") && holds("os", "kernel") && holds("os", "linux"), "the tree lost its shape");
     expect(holds("topics", "memory") && !id(".hidden"), "a folder was missed or a hidden one added");
+  }],
+  ["arranging lays every domain out on rings, and undoing puts them back", async () => {
+    const places = () => state.snapshot.domains.map(({ x, y }) => [Math.round(x), Math.round(y)]);
+    const before = JSON.stringify(places());
+    $("arrange-map").click();
+    await until("new places", () => JSON.stringify(places()) !== before);
+    const now = places();
+    for (const [at, [x, y]] of now.entries()) {
+      for (const [x2, y2] of now.slice(at + 1)) expect(Math.hypot(x - x2, y - y2) > 100, "two domains landed too close");
+    }
+    expect(toast().startsWith("Arranged"), `the message was "${toast()}"`);
+    $("toast").querySelector("button").click();
+    await until("the old places", () => JSON.stringify(places()) === before);
+  }],
+  ["a session is renamed by a double click on its row, in the agent's own records", async () => {
+    const title = row("recent-list", "Beta").querySelector(".title");
+    for (const detail of [1, 2]) title.dispatchEvent(new MouseEvent("click", { bubbles: true, detail }));
+    title.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const input = title.querySelector("input");
+    expect(input, "no name box appeared");
+    input.value = "  Beta   renamed ";
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await until("the new name", () => titles("recent-list").includes("Beta renamed"));
+    await sleep(400);
+    expect(!document.querySelector(".pane"), "the double click also opened the session");
+    const named = (await snapshot()).sessions.find((session) => session.title === "Beta renamed");
+    expect(named, "the name did not reach the agent's records");
   }],
 ];
 

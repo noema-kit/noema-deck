@@ -50,12 +50,17 @@ impl Deck {
                 };
                 reply.pane = Some(self.panes.open(&launch, login_environment(), rows, cols)?);
             }
-            pane::Request::Start { domain, folder, rows, cols } => {
-                let (key, launch) = self.map.lock().plan_start(domain, &folder)?;
+            pane::Request::Start { domain, folder, name, rows, cols } => {
+                let (key, launch) = self.map.lock().plan_start(domain, &folder, name.as_deref())?;
                 let launch = claude::for_pane(launch);
                 let pane = self.panes.open(&launch, login_environment(), rows, cols)?;
-                let recorded =
-                    self.map.lock().record_start(domain, key.clone(), &launch.folder, pane);
+                let recorded = self.map.lock().record_start(
+                    domain,
+                    key.clone(),
+                    &launch.folder,
+                    pane,
+                    name.as_deref(),
+                );
                 if recorded.is_err() {
                     self.panes.close(pane);
                 }

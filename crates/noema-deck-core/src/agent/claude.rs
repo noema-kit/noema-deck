@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     env,
     fs::{self, File},
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -69,6 +69,36 @@ impl Listing {
         sessions.sort_by(|a, b| b.updated.cmp(&a.updated).then_with(|| a.key.cmp(&b.key)));
         Ok(sessions)
     }
+
+    /// The transcript of session `id`, as found by the last listing.
+    #[must_use]
+    pub fn transcript(&self, id: &str) -> Option<&Path> {
+        let found = self.read.iter().find(|(_, (_, session))| session.key.id == id);
+        found.map(|(path, _)| path.as_path())
+    }
+}
+
+/// Names a session the way Claude Code's own `/rename` does: by appending a
+/// `custom-title` record to its transcript. Naming is not activity, so the
+/// transcript keeps its modification time. Answers with the name as stored.
+pub fn rename(transcript: &Path, id: &str, title: &str) -> Result<String> {
+    let title = clean_title(title).context("Enter a name for the session")?;
+    let record =
+        serde_json::json!({ "type": "custom-title", "customTitle": title, "sessionId": id });
+    let unwritten = || format!("Write {}", transcript.display());
+    let mut file =
+        File::options().read(true).append(true).open(transcript).with_context(unwritten)?;
+    let modified = file.metadata()?.modified()?;
+    // A transcript cut off mid-line must not swallow the record.
+    let mut last = [b'\n'];
+    if file.metadata()?.len() > 0 {
+        file.seek(SeekFrom::End(-1))?;
+        file.read_exact(&mut last)?;
+    }
+    let lead = if last[0] == b'\n' { "" } else { "\n" };
+    file.write_all(format!("{lead}{record}\n").as_bytes()).with_context(unwritten)?;
+    file.set_modified(modified)?;
+    Ok(title)
 }
 
 /// The command that reopens `session` in Claude Code's own interface.
@@ -80,14 +110,22 @@ pub fn open(session: &Session) -> Result<Launch> {
 }
 
 /// The command that starts a new session in `folder` under an ID the caller
-/// chose, so the caller knows the session before Claude Code has stored it.
-pub fn start(id: &str, folder: &Path) -> Result<Launch> {
+/// chose, so the caller knows the session before Claude Code has stored it,
+/// and under `name` when one is given.
+pub fn start(id: &str, folder: &Path, name: Option<&str>) -> Result<Launch> {
     ensure!(folder.is_dir(), "{} is not a folder", folder.display());
-    Ok(Launch {
-        folder: folder.into(),
-        program: program(),
-        args: vec!["--session-id".into(), id.into()],
-    })
+    let mut args = vec!["--session-id".into(), id.into()];
+    if let Some(name) = name.and_then(clean_title) {
+        args.extend(["--name".into(), name]);
+    }
+    Ok(Launch { folder: folder.into(), program: program(), args })
+}
+
+/// A title on one line with single spaces, or `None` when nothing is left.
+#[must_use]
+pub fn clean_title(title: &str) -> Option<String> {
+    let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!title.is_empty()).then_some(title)
 }
 
 /// Fits `launch` to a pane, whose terminal is dark. A person who chose one of
@@ -161,11 +199,45 @@ struct Record {
 
 const TITLE_FIELDS: [&str; 3] = ["\"customTitle\"", "\"aiTitle\"", "\"lastPrompt\""];
 
+/// A prompt the person typed, read only while a transcript has no title: a
+/// session closed early, or one that only ran commands such as `/login`.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Typed {
+    #[serde(default)]
+    is_meta: bool,
+    message: Message,
+}
+
+#[derive(Deserialize)]
+struct Message {
+    content: String,
+}
+
+/// What a typed message offers as a title: its text, or the command it ran.
+/// Claude Code wraps a command and its output in tags.
+enum Offer {
+    Prompt(String),
+    Command(String),
+}
+
+fn offer(typed: Typed) -> Option<Offer> {
+    let text = typed.message.content;
+    if typed.is_meta {
+        return None;
+    }
+    if let Some(rest) = text.trim_start().strip_prefix("<command-name>") {
+        return rest.split_once("</command-name>").map(|(name, _)| Offer::Command(name.into()));
+    }
+    (!text.trim_start().starts_with('<')).then_some(Offer::Prompt(text))
+}
+
 fn read_session(transcript: &Path, id: &str, modified: SystemTime) -> Result<Session> {
     let since_epoch = modified.duration_since(UNIX_EPOCH).ok();
     let updated = since_epoch.and_then(|age| i64::try_from(age.as_secs()).ok()).unwrap_or(0);
 
     let (mut folder, mut custom, mut ai, mut prompt) = (None, None, None, None);
+    let (mut typed, mut command) = (None, None);
     let mut reader = BufReader::new(File::open(transcript)?);
     let mut line = Vec::new();
     while reader.read_until(b'\n', &mut line)? != 0 {
@@ -180,10 +252,21 @@ fn read_session(transcript: &Path, id: &str, modified: SystemTime) -> Result<Ses
             ai = record.ai_title.or(ai);
             prompt = record.last_prompt.or(prompt);
         }
+        if typed.is_none()
+            && let Ok(text) = std::str::from_utf8(&line)
+            && text.contains("\"type\":\"user\"")
+            && let Ok(record) = serde_json::from_str::<Typed>(text)
+        {
+            match offer(record) {
+                Some(Offer::Prompt(text)) => typed = Some(text),
+                Some(Offer::Command(name)) => command = command.or(Some(name)),
+                None => {}
+            }
+        }
         line.clear();
     }
 
-    let title = [custom, ai, prompt]
+    let title = [custom, ai, prompt, typed, command]
         .into_iter()
         .flatten()
         .find_map(|text| {
@@ -254,6 +337,62 @@ mod tests {
     }
 
     #[test]
+    fn without_a_title_the_first_typed_prompt_or_command_names_a_session() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let project = root.path().join("p");
+        let caveat =
+            r#"{"type":"user","isMeta":true,"message":{"role":"user","content":"Typed by hand"}}"#;
+        let command = r#"{"type":"user","message":{"role":"user","content":"<command-name>/login</command-name>\n<command-args></command-args>"}}"#;
+        let output = r#"{"type":"user","message":{"role":"user","content":"<local-command-stdout>Done</local-command-stdout>"}}"#;
+        let prompt =
+            r#"{"type":"user","message":{"role":"user","content":"\n  Fix the build\nthen test"}}"#;
+        let result =
+            r#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result"}]}}"#;
+        transcript(
+            &project,
+            &format!("{FIRST}.jsonl"),
+            &[caveat, command, output, result, prompt],
+            2,
+        )?;
+        transcript(&project, &format!("{SECOND}.jsonl"), &[caveat, command, output], 1)?;
+
+        let titles: Vec<_> =
+            Listing::default().sessions(root.path())?.into_iter().map(|s| s.title).collect();
+
+        assert_eq!(titles, ["Fix the build", "/login"]);
+        Ok(())
+    }
+
+    #[test]
+    fn renaming_appends_a_custom_title_and_keeps_the_time() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let project = root.path().join("p");
+        // The last line has no newline, as if cut off.
+        transcript(
+            &project,
+            &format!("{FIRST}.jsonl"),
+            &[r#"{"type":"ai-title","aiTitle":"Old"}"#],
+            100,
+        )?;
+        let mut listing = Listing::default();
+        listing.sessions(root.path())?;
+        let path = listing.transcript(FIRST).context("transcript")?.to_owned();
+
+        let stored = rename(&path, FIRST, "  Deck\n  rename ")?;
+
+        assert_eq!(stored, "Deck rename");
+        let sessions = listing.sessions(root.path())?;
+        assert_eq!((sessions[0].title.as_str(), sessions[0].updated), ("Deck rename", 100));
+        let text = fs::read_to_string(&path)?;
+        let last: serde_json::Value = serde_json::from_str(text.lines().last().context("line")?)?;
+        assert_eq!(last["sessionId"], FIRST);
+        assert!(text.ends_with('\n') && text.lines().count() == 2);
+        assert!(rename(&path, FIRST, " \n ").is_err());
+        assert!(listing.transcript(SECOND).is_none());
+        Ok(())
+    }
+
+    #[test]
     fn folder_is_the_first_cwd_and_broken_lines_are_skipped() -> Result<()> {
         let root = tempfile::tempdir()?;
         let lines = [
@@ -312,11 +451,14 @@ mod tests {
     fn starting_passes_the_chosen_id_and_needs_a_folder() -> Result<()> {
         let folder = tempfile::tempdir()?;
 
-        let launch = start(FIRST, folder.path())?;
+        let launch = start(FIRST, folder.path(), None)?;
 
         assert_eq!(launch.args, ["--session-id", FIRST]);
         assert_eq!(launch.folder, folder.path());
-        assert!(start(FIRST, &folder.path().join("gone")).is_err());
+        assert!(start(FIRST, &folder.path().join("gone"), None).is_err());
+        let named = start(FIRST, folder.path(), Some(" Fix  the build "))?;
+        assert_eq!(named.args, ["--session-id", FIRST, "--name", "Fix the build"]);
+        assert_eq!(start(FIRST, folder.path(), Some("  "))?.args.len(), 2);
         Ok(())
     }
 

@@ -16,22 +16,35 @@
     <p>Double-click the map to add one.</p>
   </div>
 
-  <nav id="rail" aria-label="Views" data-tauri-drag-region>
+  <header id="top" data-tauri-drag-region>
     <button id="toggle-list" type="button" title="Session list (⌘B)" aria-label="Session list">
-      <svg viewBox="0 0 18 18"><rect x="2.5" y="3.5" width="13" height="11" rx="2"/><path d="M7 3.5v11"/></svg>
+      <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg>
     </button>
-    <button id="show-map" type="button" title="Map (⌘1)" aria-label="Map">
-      <svg viewBox="0 0 18 18"><circle cx="5" cy="5.5" r="1.8"/><circle cx="13" cy="7" r="1.8"/><circle cx="8" cy="13" r="1.8"/><path d="M6.7 5.9l4.5.8M12 8.5l-2.9 3.2M5.6 7.2l1.7 4.2"/></svg>
+    <div class="views" role="tablist" aria-label="Views">
+      <button id="show-map" type="button" title="Map (⌘1)" aria-label="Map">
+        <svg viewBox="0 0 16 16"><circle cx="4.5" cy="5" r="1.6"/><circle cx="11.5" cy="6.5" r="1.6"/><circle cx="7" cy="11.5" r="1.6"/><path d="M6 5.3l4 .9M10.6 7.8l-2.6 2.6M5 6.5l1.5 3.5"/></svg>
+      </button>
+      <button id="show-shell" type="button" title="Terminal (⌘2)" aria-label="Terminal">
+        <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6.5l1.8 1.5L5 9.5M8.5 10h2.5"/></svg>
+      </button>
+    </div>
+    <span id="where" data-tauri-drag-region></span>
+    <div class="map-tools">
+      <button id="arrange-map" type="button" title="Arrange every domain on rings" aria-label="Arrange the map">
+        <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="8" r="5.5" stroke-dasharray="2 2.2"/><circle cx="8" cy="2.5" r="1"/><circle cx="13" cy="10.5" r="1"/><circle cx="3.2" cy="10.8" r="1"/></svg>
+      </button>
+      <button id="fit-map" type="button" title="Show every domain (⌘0)" aria-label="Show every domain">
+        <svg viewBox="0 0 16 16"><path d="M2.5 6V3.5a1 1 0 0 1 1-1H6M10 2.5h2.5a1 1 0 0 1 1 1V6M13.5 10v2.5a1 1 0 0 1-1 1H10M6 13.5H3.5a1 1 0 0 1-1-1V10"/></svg>
+      </button>
+    </div>
+    <button id="show-help" type="button" title="Shortcuts" aria-label="Shortcuts">
+      <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M6.4 6.4a1.7 1.7 0 1 1 2.3 1.6c-.5.2-.7.6-.7 1.1v.3M8 11.3v.1"/></svg>
     </button>
-    <button id="show-shell" type="button" title="Terminal (⌘2)" aria-label="Terminal">
-      <svg viewBox="0 0 18 18"><rect x="2.5" y="3.5" width="13" height="11" rx="2"/><path d="M5.5 7.5l2 1.8-2 1.8M9.5 11.2h3"/></svg>
-    </button>
-    <button id="show-help" type="button" class="last" title="Shortcuts" aria-label="Shortcuts">?</button>
-  </nav>
+  </header>
 
-  <section id="list" aria-label="Sessions" data-tauri-drag-region>
-    <header data-tauri-drag-region>
-      <h2 data-tauri-drag-region>Sessions</h2>
+  <section id="list" aria-label="Sessions">
+    <header>
+      <h2>Sessions</h2>
       <button id="new-shell" type="button" title="New shell" aria-label="New shell">
         <svg viewBox="0 0 16 16"><path d="M3.5 5l3 3-3 3M8.5 11.5h4"/></svg>
       </button>
@@ -52,10 +65,7 @@
 
   <section id="shell" aria-label="Terminal" hidden>
     <p id="shell-empty" class="note">No open session. Choose one from the list.</p>
-    <div id="divider" role="separator" aria-label="Resize the panes" title="Drag to resize" hidden></div>
   </section>
-
-  <div id="bar" data-tauri-drag-region></div>
 
   <aside id="panel" aria-label="Domain" hidden>
     <div id="panel-edge" role="separator" aria-label="Resize the domain panel" title="Drag to resize"></div>
@@ -81,6 +91,7 @@
 
   <form id="starter" hidden>
     <select id="starter-domain" aria-label="Domain for the new session"></select>
+    <input id="starter-name" placeholder="Name (optional)" aria-label="Name for the new session" autocomplete="off" spellcheck="false">
     <input id="starter-folder" list="folders" placeholder="Folder, such as ~/project" aria-label="Folder for the new session" autocomplete="off" spellcheck="false">
     <datalist id="folders"></datalist>
     <button type="submit">Start</button>
@@ -106,14 +117,17 @@
     <div><dt>Colour</dt><dd>Blue-white is recent, amber is quiet</dd></div>
     <div><dt>⌘1, ⌘2</dt><dd>Map, terminal</dd></div>
     <div><dt>⌘B, ⌘K</dt><dd>Session list, search</dd></div>
-    <div><dt>⌘D, ⇧⌘D</dt><dd>Split right, split down</dd></div>
+    <div><dt>⌘D, ⇧⌘D</dt><dd>Split the pane right, down</dd></div>
+    <div><dt>⌘0</dt><dd>Show every domain</dd></div>
+    <div><dt>Double-click a session</dt><dd>Rename it</dd></div>
   </dl>
 
   <form id="namer" hidden>
     <input id="namer-input" placeholder="Name, or a folder to import" aria-label="Domain name, or a folder to import" autocomplete="off" spellcheck="false">
   </form>
   <div id="ghost" hidden></div>
-  <div id="toast" role="status" hidden></div>
+  <div id="drop" hidden></div>
+  <div id="toast" role="status" hidden><span></span><button type="button" hidden></button></div>
 
   <script src="vendor/xterm.js"></script>
   <script src="vendor/xterm-addon-fit.js"></script>

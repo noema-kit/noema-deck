@@ -20,6 +20,8 @@ pub enum Request {
     Start {
         domain: DomainId,
         folder: String,
+        /// A name for the session. Optional.
+        name: Option<String>,
         rows: u16,
         cols: u16,
     },

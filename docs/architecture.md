@@ -31,7 +31,7 @@ flowchart LR
 | `session`, `domain` | The records Deck works with. |
 | `store` | The SQLite file: tables and upgrades, domains, assignments, settings. |
 | `import` | A folder tree turned into domains laid out on rings. |
-| `map` | Domains, links and assignments joined with the agent's sessions. One `Request` goes in and one `Snapshot` comes out. |
+| `map` | Domains, links and assignments joined with the agent's sessions. One `Request` goes in and one `Snapshot` comes out. `map::arrange` lays the domains out as a galaxy. |
 | `pane` | Terminal panes on pseudoterminals. |
 | `deck` | One running Deck: the map behind a lock, and the panes. |
 
@@ -54,8 +54,8 @@ Every rule lives in the core: a refused link, a domain's count, which sessions a
 
 ## Interface
 
-- **No state of its own.** Domains and sessions come only from snapshots. The page keeps layout choices alone, such as panel widths, in its local storage.
-- **Title bar.** The window's title bar is an overlay. The page marks the regions that drag and zoom the window, and one capability file grants it those two calls.
+- **No state of its own.** Domains and sessions come only from snapshots. The page keeps layout choices alone, such as panel widths, in its local storage. The panes to reopen and their layout go to the store, so they follow the store and not the web view.
+- **Title bar.** The window's title bar is an overlay, with its buttons centred in the page's top bar. The page marks the regions that drag and zoom the window, and one capability file grants it those two calls.
 
 ## Map drawing
 
@@ -74,7 +74,7 @@ One SQLite file in the per-user application data directory. Nothing from a sessi
 | `domain` | `id`, `name`, `x`, `y` |
 | `link` | `parent`, `child` |
 | `assignment` | `domain`, `agent`, `session` |
-| `setting` | `name`, `value` |
+| `setting` | `name`, `value`: the last folder, and the panes to reopen with their layout tree |
 
 `PRAGMA user_version` counts the upgrade steps a store has had. Opening runs the ones it lacks, and refuses a store from a newer Deck.
 
@@ -98,11 +98,12 @@ A pane runs one command on a pseudoterminal: Claude Code on a session, or the us
 | Action | Interface |
 | --- | --- |
 | List | Transcript files, `~/.claude/projects/<project>/<session-id>.jsonl` |
-| Title | Last `custom-title` record, else `ai-title`, else `last-prompt` |
+| Title | Last `custom-title` record, else `ai-title`, else `last-prompt`, else the first typed prompt or command |
+| Rename | Append a `custom-title` record, as `/rename` does, and keep the file's modification time |
 | Folder | `cwd` of the first record that has one |
 | Last activity | File modification time |
 | Open | `claude --resume <id>` in the session's folder |
-| Start | `claude --session-id <uuid>` with an ID Deck chooses |
+| Start | `claude --session-id <uuid>` with an ID Deck chooses, and `--name` when named |
 | Theme | In a pane, `--settings` swaps a light Claude Code theme for its dark counterpart, for that run only |
 
 Read from Claude Code 2.1.330 on macOS. The transcript format is undocumented, so Deck reads only these fields, and reads a transcript again only when its time or length has changed.

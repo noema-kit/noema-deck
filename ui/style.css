@@ -33,17 +33,20 @@
 }
 
 :root {
-  /* The canvas reads the first three, so they stay six-digit colours. */
-  --starlight: #f4f0e6; /* Words and names on the map. */
-  --gold: #f1cc7a; /* Focus, counts and the one accent. */
-  --link: #96aae1; /* Links on the map. */
-  --space: #04050b; /* The sky behind everything. */
-  --plate: #090b16; /* Panels and terminals. */
-  --raised: #181c33; /* Hover and chips. */
-  --dust: #949cba; /* Secondary text. */
-  --ember: #f08d77; /* Refusals and deleting. */
-  --hair: rgb(150 166 225 / 0.17);
-  --field: rgb(150 166 225 / 0.07); /* Inputs and rows under the pointer. */
+  /* One night palette: indigo plates that sit in the same sky as the map, warm
+     starlight for words, and champagne as the single accent, softened wherever
+     it fills an area. The canvas reads the first three, so they stay six-digit. */
+  --starlight: #ece7dc; /* Words and names on the map. */
+  --gold: #e6c48a; /* Focus, counts and the one accent. */
+  --link: #8ea2d8; /* Links on the map. */
+  --space: #05060e; /* The sky behind everything. */
+  --plate: #0a0c18; /* Panels, bars and terminals. */
+  --raised: #161a2e; /* Hover and chips. */
+  --dust: #8a91ad; /* Secondary text. */
+  --ember: #e48a7a; /* Refusals and deleting. */
+  --hair: rgb(142 160 220 / 0.13);
+  --field: rgb(142 160 220 / 0.06); /* Inputs and rows under the pointer. */
+  --wash: rgb(230 196 138 / 0.08); /* The accent spread over an area: a chosen row or a drop. */
   --serif: "Newsreader", "Iowan Old Style", Palatino, Georgia, serif;
   --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: dark;
@@ -72,11 +75,11 @@ button { cursor: pointer; }
 
 /* Layout: what the docked plates leave free */
 
-body { --bar: 0px; --list: 248px; --panel: 320px; --left: 44px; --right: 0px; }
-body.listed { --left: calc(44px + var(--list)); }
+body { --top: 40px; --lights: 10px; --list: 248px; --panel: 320px; --left: 0px; --right: 0px; }
+body.listed { --left: var(--list); }
 body.focused { --right: var(--panel); }
-/* Under the title bar of the desktop window, where its three buttons sit. */
-body.overlaid { --bar: 28px; }
+/* The desktop window on macOS draws its three buttons at the left of the top bar. */
+body.overlaid { --lights: 80px; }
 
 /* The map */
 
@@ -110,47 +113,68 @@ body.overlaid { --bar: 28px; }
 /* Plates: solid rather than blurred glass. A blur is worked out again on every
    frame the map moves, and a clear plate lets the names behind it show through. */
 
-#rail, #list, #panel, #shell {
+#list, #panel, #shell {
   position: fixed;
-  top: 0;
+  top: var(--top);
   bottom: 0;
   display: flex;
   flex-direction: column;
   background: var(--plate);
 }
 
-#rail {
+/* One bar along the top of the window, as in other desktop apps: the window's
+   buttons, the views and the map's tools. Its empty stretches drag the window. */
+#top {
+  position: fixed;
+  top: 0;
   left: 0;
+  right: 0;
   z-index: 7;
-  width: 44px;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: calc(10px + var(--bar)) 0 10px;
-  border-right: 1px solid var(--hair);
+  gap: 2px;
+  height: var(--top);
+  padding: 0 8px 0 var(--lights);
+  border-bottom: 1px solid var(--hair);
+  background: var(--plate);
 }
 
-#rail button {
+#top button {
+  position: relative;
   display: grid;
+  flex: none;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: 0;
   border-radius: 6px;
   background: none;
   color: var(--dust);
-  font: 500 16px var(--serif);
 }
 
-#rail button:hover { background: var(--raised); color: var(--starlight); }
-#rail button.on { color: var(--gold); }
-#rail .last { margin-top: auto; }
-#rail svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+#top button:hover { background: var(--raised); color: var(--starlight); }
+#top button.on { color: var(--gold); }
+#top button svg { width: 16px; height: 16px; stroke-width: 1.35; }
+#top .views { display: flex; gap: 2px; margin-left: 6px; padding-left: 8px; border-left: 1px solid var(--hair); }
+#where { flex: 1; min-width: 0; overflow: hidden; color: var(--dust); font: italic 400 14px var(--serif); text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+#top .map-tools { display: flex; gap: 2px; }
+body:not(.on-map) #top .map-tools { display: none; }
+/* A session finished out of sight. */
+#top button.ready::after {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  content: "";
+}
 
-#list { left: 44px; z-index: 6; width: var(--list); padding-top: var(--bar); border-right: 1px solid var(--hair); }
+#list { left: 0; z-index: 6; width: var(--list); border-right: 1px solid var(--hair); }
 body:not(.listed) #list { display: none; }
 #panel { right: 0; z-index: 5; width: var(--panel); border-left: 1px solid var(--hair); }
-/* The strip of the map under the title bar, which drags the window as a title bar would. */
-#bar { position: fixed; top: 0; left: var(--left); right: var(--right); z-index: 4; height: var(--bar); }
 
 #list header, #panel header { display: flex; align-items: center; gap: 6px; padding: 12px 10px 8px 14px; }
 #panel header { padding: 10px 8px 0 6px; }
@@ -176,16 +200,16 @@ h3 { margin: 12px 14px 4px; color: var(--dust); font: 500 11.5px/1 var(--sans); 
 .pane header .close:hover, .entry .tools .close:hover { color: var(--ember); }
 button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 
-/* Edges to drag: the session list's, the domain panel's, and the one between two panes. */
-#list-edge, #panel-edge, #divider { z-index: 1; flex: none; cursor: col-resize; touch-action: none; }
+/* Edges to drag: the session list's, the domain panel's, and those between panes. */
+#list-edge, #panel-edge, .divider { z-index: 1; flex: none; cursor: col-resize; touch-action: none; }
 #list-edge, #panel-edge { position: absolute; top: 0; right: -4px; bottom: 0; width: 7px; }
 #panel-edge { right: auto; left: -4px; }
-#divider { position: relative; order: 1; width: 1px; background: var(--hair); }
-#divider::after { content: ""; position: absolute; inset: 0 -4px; }
-.stacked #divider { width: auto; height: 1px; cursor: row-resize; }
-.stacked #divider::after { inset: -4px 0; }
+.divider { position: relative; width: 1px; background: var(--hair); }
+.divider::after { content: ""; position: absolute; inset: 0 -4px; }
+.split.column > .divider { width: auto; height: 1px; cursor: row-resize; }
+.split.column > .divider::after { inset: -4px 0; }
 #list-edge:hover, #list-edge.held, #panel-edge:hover, #panel-edge.held { background: linear-gradient(var(--gold), var(--gold)) center / 1px 100% no-repeat; }
-#divider:hover, #divider.held { background: var(--gold); }
+.divider:hover, .divider.held { background: var(--gold); }
 
 input:not([type="checkbox"]), select {
   width: 100%;
@@ -221,7 +245,7 @@ input:not([type="checkbox"]):focus-visible, select:focus-visible { outline: none
 }
 
 .entry:hover, .entry:focus-visible { outline: none; background: var(--field); }
-.entry.current { background: var(--raised); box-shadow: inset 2px 0 var(--gold); }
+.entry.current { background: var(--wash); box-shadow: inset 2px 0 rgb(230 196 138 / 0.75); }
 .entry .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .entry .sub { grid-column: 2; overflow: hidden; color: var(--dust); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -243,6 +267,11 @@ input:not([type="checkbox"]):focus-visible, select:focus-visible { outline: none
 .dot.active { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
 .dot.quiet { background: var(--link); opacity: 0.7; }
 .dot.ended { border: 1px solid var(--dust); }
+.dot.ready { border: 2px solid var(--gold); }
+
+/* A session title being renamed in place. */
+input.rename { height: 24px; padding: 0 6px; font: inherit; }
+.pane .title:has(input.rename) { flex: 0 1 320px; }
 
 /* The domain panel */
 
@@ -291,11 +320,11 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--hair
 }
 
 .actions button:hover { border-color: var(--link); background: var(--raised); }
-.actions .primary, #starter button { border-color: var(--starlight); background: var(--starlight); color: var(--plate); font-weight: 600; }
-.actions .primary:hover, #starter button:hover { border-color: #fff; background: #fff; }
+.actions .primary, #starter button { border-color: rgb(230 196 138 / 0.5); background: rgb(230 196 138 / 0.14); color: var(--gold); font-weight: 600; }
+.actions .primary:hover, #starter button:hover { border-color: var(--gold); background: rgb(230 196 138 / 0.22); }
 .actions .primary:disabled { opacity: 0.4; cursor: default; }
 .actions .danger { margin-left: auto; color: var(--ember); }
-.actions .danger:hover { border-color: var(--ember); background: rgb(240 141 119 / 0.12); }
+.actions .danger:hover { border-color: var(--ember); background: rgb(228 138 122 / 0.12); }
 
 .check { display: flex; align-items: center; gap: 8px; margin: 14px 16px 10px; color: var(--dust); font-size: 12.5px; }
 .check input { accent-color: var(--gold); }
@@ -319,7 +348,7 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--hair
 
 .session:hover { background: var(--field); }
 .session.pick { cursor: pointer; }
-.session.selected { background: rgb(241 204 122 / 0.11); box-shadow: inset 2px 0 var(--gold); }
+.session.selected { background: var(--wash); box-shadow: inset 2px 0 rgb(230 196 138 / 0.75); }
 .session.missing { cursor: default; color: var(--dust); font-style: italic; }
 .session .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .session .folder, .session .when { color: var(--dust); font-size: 12px; white-space: nowrap; }
@@ -345,7 +374,10 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--hair
 /* Terminals */
 
 #shell { left: var(--left); right: 0; z-index: 5; flex-direction: row; }
-#shell.stacked { flex-direction: column; }
+/* Panes tile as nested rows and columns, each part taking its share. */
+.split { display: flex; flex: 1 1 0; min-width: 0; min-height: 0; }
+.split.row { flex-direction: row; }
+.split.column { flex-direction: column; }
 #shell-empty { margin: auto; }
 
 .pane {
@@ -357,8 +389,6 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--hair
 }
 
 .pane header { display: flex; flex: none; align-items: center; gap: 2px; height: 36px; padding: 0 6px 0 14px; border-bottom: 1px solid var(--hair); }
-/* With the list hidden, the first header starts clear of the window's buttons. */
-.overlaid:not(.listed) .pane.first header { padding-left: 38px; }
 .pane.active header { box-shadow: inset 0 -1px var(--gold); }
 .pane .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 15px var(--serif); }
 .pane .sub { flex: 1; min-width: 0; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dust); font-size: 12px; }
@@ -377,12 +407,12 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--hair
 }
 
 #starter { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 10px; }
-#starter select { grid-column: 1 / -1; }
+#starter select, #starter-name { grid-column: 1 / -1; }
 
 #help {
   position: fixed;
-  left: 52px;
-  bottom: 10px;
+  top: calc(var(--top) + 6px);
+  right: 8px;
   z-index: 8;
   display: grid;
   gap: 5px;
@@ -395,7 +425,7 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--hair
 #help dt { color: var(--starlight); }
 #help dd { margin: 0; color: var(--dust); }
 
-#picker { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgb(4 5 11 / 0.6); }
+#picker { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgb(5 6 14 / 0.6); }
 .sheet { display: flex; flex-direction: column; width: min(560px, 90vw); height: min(620px, 80vh); }
 .sheet h2 { flex: none; padding: 16px 16px 10px; }
 .sheet input { width: auto; margin: 0 16px 10px; }
@@ -425,6 +455,24 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--hair
   transform: translateX(-50%);
   border: 1px solid var(--ember);
   border-radius: 5px;
-  background: #21131a;
-  color: #ffe1d8;
+  background: #1e1220;
+  color: #f4d8cf;
+}
+
+#toast:not([hidden]) { display: flex; align-items: center; gap: 14px; }
+/* A note that is not a refusal, such as one offering to undo. */
+#toast.calm { border-color: var(--hair); background: var(--raised); color: var(--starlight); }
+#toast button { padding: 2px 8px; border: 1px solid var(--gold); border-radius: 4px; background: none; color: var(--gold); }
+
+/* Carrying a session or a pane: the spot it would land on. */
+body.carrying, body.carrying * { cursor: grabbing !important; }
+body.carrying .xterm { pointer-events: none; }
+#drop {
+  position: fixed;
+  z-index: 8;
+  border: 1.5px solid rgb(230 196 138 / 0.7);
+  border-radius: 8px;
+  background: var(--wash);
+  pointer-events: none;
+  transition: left 90ms, top 90ms, width 90ms, height 90ms;
 }

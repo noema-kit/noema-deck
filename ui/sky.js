@@ -42,7 +42,7 @@ const GAS = [
   [[4.2, 2, 7.6], 0.2],
   [[6.6, 3.1, 2.8], 0.1],
 ];
-const SPACE = [4, 5, 11]; // The sky where no gas glows.
+const SPACE = [5, 6, 14]; // The sky where no gas glows.
 
 const clamp = (value, least, most) => Math.min(most, Math.max(least, value));
 const mod = (value, by) => ((value % by) + by) % by;

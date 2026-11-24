@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::{domain::DomainId, session::SessionKey};
+use crate::{domain::DomainId, session::SessionKey, store::OpenPanes};
 
 /// A request about the map. Every one is answered with a fresh
 /// [`Snapshot`](super::Snapshot).
@@ -33,6 +33,12 @@ pub enum Request {
         x: f64,
         y: f64,
     },
+    /// Lay every domain out as one galaxy, roots at the core.
+    Arrange,
+    /// Move several domains at once, as undoing an arrangement does.
+    MoveDomains {
+        moves: Vec<(DomainId, f64, f64)>,
+    },
     DeleteDomain {
         domain: DomainId,
     },
@@ -51,5 +57,14 @@ pub enum Request {
     Unassign {
         domain: DomainId,
         session: SessionKey,
+    },
+    /// Name a session in its agent's own records.
+    RenameSession {
+        session: SessionKey,
+        title: String,
+    },
+    /// Remember the panes open now, for the next run.
+    KeepPanes {
+        panes: OpenPanes,
     },
 }

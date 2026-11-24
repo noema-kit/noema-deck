@@ -44,6 +44,13 @@ pub fn open(map: &Map, session: &str) -> Result<()> {
     Err(failure).with_context(|| format!("Run `{}`", launch.program))
 }
 
+pub fn rename(map: &mut Map, session: &str, title: &str) -> Result<()> {
+    let snapshot = map.snapshot()?;
+    let session = find::session(snapshot.sessions.iter().map(|session| &session.key), session)?;
+    map.handle(Request::RenameSession { session, title: title.into() })?;
+    Ok(())
+}
+
 pub fn assign(map: &mut Map, session: &str, domain: &str) -> Result<()> {
     let snapshot = map.snapshot()?;
     let key = find::session(snapshot.sessions.iter().map(|session| &session.key), session)?;

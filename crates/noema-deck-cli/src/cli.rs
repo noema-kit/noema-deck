@@ -31,6 +31,12 @@ pub enum Command {
         /// The session's ID, or the start of it.
         session: String,
     },
+    /// Name a session, as Claude Code's `/rename` does.
+    Rename {
+        /// The session's ID, or the start of it.
+        session: String,
+        title: String,
+    },
     /// Assign a session to a domain.
     Assign {
         /// The session's ID, or the start of it.

@@ -6,6 +6,8 @@ mod domains;
 mod schema;
 mod settings;
 
+pub use self::settings::{Direction, Layout, OpenPane, OpenPanes};
+
 use std::{
     env, fs,
     path::{Path, PathBuf},

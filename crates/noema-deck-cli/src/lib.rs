@@ -26,6 +26,7 @@ pub fn run(store: Option<&Path>, command: Command) -> Result<()> {
             sessions::list(&map()?, unassigned, query.as_deref())
         }
         Command::Open { session } => sessions::open(&map()?, &session),
+        Command::Rename { session, title } => sessions::rename(&mut map()?, &session, &title),
         Command::Assign { session, domain } => sessions::assign(&mut map()?, &session, &domain),
         Command::Unassign { session, domain } => sessions::unassign(&mut map()?, &session, &domain),
         Command::Domain(command) => domains::run(&mut map()?, command),

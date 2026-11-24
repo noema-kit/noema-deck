@@ -97,6 +97,18 @@ impl Store {
         Ok(())
     }
 
+    /// Moves several domains in one step.
+    pub fn move_domains(&mut self, moves: &[(DomainId, f64, f64)]) -> Result<()> {
+        let transaction = self.connection.transaction()?;
+        for &(domain, x, y) in moves {
+            let changed = transaction
+                .execute("UPDATE domain SET x = ?2, y = ?3 WHERE id = ?1", (domain, x, y))?;
+            ensure!(changed == 1, "No domain {domain}");
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
     /// Deletes a domain with its links and assignments. A subdomain left with
     /// no parent domain moves up to the deleted domain's parent domains, or becomes
     /// a root domain when there are none.

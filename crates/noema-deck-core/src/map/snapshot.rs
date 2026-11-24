@@ -9,7 +9,7 @@ use crate::{
     domain::DomainId,
     folder,
     session::{Session, SessionKey},
-    store::Store,
+    store::{OpenPanes, Store},
 };
 
 /// Everything on the map at one moment.
@@ -25,6 +25,8 @@ pub struct Snapshot {
     pub missing: Vec<MissingSession>,
     /// The folder the last new session was started in.
     pub last_folder: Option<String>,
+    /// The panes open when Deck last stopped.
+    pub panes: OpenPanes,
 }
 
 #[derive(Debug, Serialize)]
@@ -98,6 +100,7 @@ impl Snapshot {
             sessions,
             missing,
             last_folder: store.last_folder()?.as_deref().map(folder::label),
+            panes: store.open_panes()?,
         })
     }
 }
