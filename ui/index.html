@@ -9,61 +9,115 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <canvas id="sky" role="img" aria-label="Universe of topic stars"></canvas>
+  <canvas id="sky" role="img" aria-label="Map of domains"></canvas>
 
   <div id="empty" hidden>
-    <p class="lead">An empty sky</p>
-    <p>Double-click anywhere to place your first star.</p>
+    <p class="lead">No domains yet</p>
+    <p>Double-click the map to add one.</p>
   </div>
 
-  <dl id="key" aria-label="How to edit the map">
-    <div><dt>Double-click the sky</dt><dd>new star</dd></div>
-    <div><dt>Drag a star</dt><dd>move it</dd></div>
-    <div><dt>Shift-drag star to star</dt><dd>link them</dd></div>
-    <div><dt>Blue-white to amber</dt><dd>worked on lately to long quiet</dd></div>
-  </dl>
-
-  <section id="tray" aria-label="Unsorted sessions">
-    <header>
-      <h2>Unsorted <span id="tray-count"></span></h2>
-      <input id="tray-search" type="search" placeholder="Search by title or folder" aria-label="Search unsorted sessions">
-    </header>
-    <ul id="tray-list" class="sessions"></ul>
-    <p id="tray-note" class="note"></p>
-  </section>
-
-  <aside id="panel" aria-label="Focused star" hidden>
-    <input id="star-name" aria-label="Star name" spellcheck="false">
-    <p id="star-meta" class="note"></p>
-    <div id="star-links"></div>
-    <div class="actions">
-      <button id="new-session" type="button" class="primary">New session</button>
-      <button id="add-smaller" type="button">Add smaller star</button>
-      <button id="delete-star" type="button" class="danger">Delete star</button>
-    </div>
-    <form id="starter" hidden>
-      <input id="starter-folder" list="folders" placeholder="Folder, such as ~/project" aria-label="Folder for the new session" autocomplete="off" spellcheck="false">
-      <datalist id="folders"></datalist>
-      <button type="submit">Start</button>
-    </form>
-    <label class="check"><input id="with-smaller" type="checkbox"> Include smaller stars</label>
-    <ul id="star-sessions" class="sessions"></ul>
-  </aside>
-
-  <section id="shell" aria-label="Open sessions" hidden></section>
-  <nav id="views" aria-label="Views" hidden>
-    <button id="show-map" type="button" title="Map (⌘1 or Ctrl+1)">Map</button>
-    <button id="show-shell" type="button" title="Shell (⌘2 or Ctrl+2)">Shell</button>
+  <nav id="rail" aria-label="Views" data-tauri-drag-region>
+    <button id="toggle-list" type="button" title="Session list (⌘B)" aria-label="Session list">
+      <svg viewBox="0 0 18 18"><rect x="2.5" y="3.5" width="13" height="11" rx="2"/><path d="M7 3.5v11"/></svg>
+    </button>
+    <button id="show-map" type="button" title="Map (⌘1)" aria-label="Map">
+      <svg viewBox="0 0 18 18"><circle cx="5" cy="5.5" r="1.8"/><circle cx="13" cy="7" r="1.8"/><circle cx="8" cy="13" r="1.8"/><path d="M6.7 5.9l4.5.8M12 8.5l-2.9 3.2M5.6 7.2l1.7 4.2"/></svg>
+    </button>
+    <button id="show-shell" type="button" title="Terminal (⌘2)" aria-label="Terminal">
+      <svg viewBox="0 0 18 18"><rect x="2.5" y="3.5" width="13" height="11" rx="2"/><path d="M5.5 7.5l2 1.8-2 1.8M9.5 11.2h3"/></svg>
+    </button>
+    <button id="show-help" type="button" class="last" title="Shortcuts" aria-label="Shortcuts">?</button>
   </nav>
 
+  <section id="list" aria-label="Sessions" data-tauri-drag-region>
+    <header data-tauri-drag-region>
+      <h2 data-tauri-drag-region>Sessions</h2>
+      <button id="new-shell" type="button" title="New shell" aria-label="New shell">
+        <svg viewBox="0 0 16 16"><path d="M3.5 5l3 3-3 3M8.5 11.5h4"/></svg>
+      </button>
+      <button id="new-session" type="button" title="New session" aria-label="New session">
+        <svg viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg>
+      </button>
+    </header>
+    <input id="list-search" type="search" placeholder="Search (⌘K)" aria-label="Search sessions">
+    <div id="list-body">
+      <h3 id="open-head">Open</h3>
+      <ul id="open-list"></ul>
+      <h3 id="recent-head">Recent</h3>
+      <ul id="recent-list"></ul>
+      <p id="list-note" class="note"></p>
+    </div>
+    <div id="list-edge" role="separator" aria-label="Resize the session list" title="Drag to resize"></div>
+  </section>
+
+  <section id="shell" aria-label="Terminal" hidden>
+    <p id="shell-empty" class="note">No open session. Choose one from the list.</p>
+    <div id="divider" role="separator" aria-label="Resize the panes" title="Drag to resize" hidden></div>
+  </section>
+
+  <div id="bar" data-tauri-drag-region></div>
+
+  <aside id="panel" aria-label="Domain" hidden>
+    <div id="panel-edge" role="separator" aria-label="Resize the domain panel" title="Drag to resize"></div>
+    <header>
+      <input id="domain-name" aria-label="Domain name" spellcheck="false">
+      <button id="close-panel" type="button" aria-label="Close" title="Close">
+        <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+    <p id="domain-meta" class="note"></p>
+    <div id="domain-links"></div>
+    <div class="actions">
+      <button id="start-here" type="button" class="primary">New session</button>
+      <button id="add-existing" type="button">Add existing</button>
+    </div>
+    <label class="check"><input id="nested" type="checkbox"> Include subdomains</label>
+    <ul id="domain-sessions" class="sessions"></ul>
+    <footer class="actions">
+      <button id="add-subdomain" type="button">Add subdomain</button>
+      <button id="delete-domain" type="button" class="danger">Delete</button>
+    </footer>
+  </aside>
+
+  <form id="starter" hidden>
+    <select id="starter-domain" aria-label="Domain for the new session"></select>
+    <input id="starter-folder" list="folders" placeholder="Folder, such as ~/project" aria-label="Folder for the new session" autocomplete="off" spellcheck="false">
+    <datalist id="folders"></datalist>
+    <button type="submit">Start</button>
+  </form>
+
+  <div id="picker" hidden>
+    <form class="sheet">
+      <h2 id="picker-title"></h2>
+      <input id="picker-search" type="search" placeholder="Search by title or folder" aria-label="Search session history">
+      <ul id="picker-list" class="sessions"></ul>
+      <footer class="actions">
+        <span id="picker-note" class="note"></span>
+        <button id="picker-cancel" type="button">Cancel</button>
+        <button id="picker-add" type="submit" class="primary">Add</button>
+      </footer>
+    </form>
+  </div>
+
+  <dl id="help" hidden>
+    <div><dt>Double-click the map</dt><dd>Add a domain</dd></div>
+    <div><dt>Drag</dt><dd>Move a domain</dd></div>
+    <div><dt>Shift-drag</dt><dd>Link a parent to a subdomain</dd></div>
+    <div><dt>Colour</dt><dd>Blue-white is recent, amber is quiet</dd></div>
+    <div><dt>⌘1, ⌘2</dt><dd>Map, terminal</dd></div>
+    <div><dt>⌘B, ⌘K</dt><dd>Session list, search</dd></div>
+    <div><dt>⌘D, ⇧⌘D</dt><dd>Split right, split down</dd></div>
+  </dl>
+
   <form id="namer" hidden>
-    <input id="namer-input" placeholder="Star name, or a folder to import" aria-label="New star name, or a folder to import" autocomplete="off" spellcheck="false">
+    <input id="namer-input" placeholder="Name, or a folder to import" aria-label="Domain name, or a folder to import" autocomplete="off" spellcheck="false">
   </form>
   <div id="ghost" hidden></div>
   <div id="toast" role="status" hidden></div>
 
   <script src="vendor/xterm.js"></script>
   <script src="vendor/xterm-addon-fit.js"></script>
+  <script src="vendor/xterm-addon-webgl.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

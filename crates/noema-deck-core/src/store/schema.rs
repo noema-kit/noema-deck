@@ -4,7 +4,7 @@ use anyhow::{Result, ensure};
 use rusqlite::Connection;
 
 /// Each step takes the store from one schema version to the next.
-const MIGRATIONS: [&str; 2] = [
+const MIGRATIONS: [&str; 3] = [
     "CREATE TABLE star (
          id   INTEGER PRIMARY KEY AUTOINCREMENT,
          name TEXT NOT NULL,
@@ -25,6 +25,14 @@ const MIGRATIONS: [&str; 2] = [
          PRIMARY KEY (star, agent, session)
      ) WITHOUT ROWID;",
     "CREATE TABLE setting (name TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;",
+    // The records took the names the documents use: domains, parents and assignments.
+    "ALTER TABLE star RENAME TO domain;
+     ALTER TABLE link RENAME COLUMN larger TO parent;
+     ALTER TABLE link RENAME COLUMN smaller TO child;
+     DROP INDEX link_smaller;
+     CREATE INDEX link_child ON link (child);
+     ALTER TABLE placement RENAME TO assignment;
+     ALTER TABLE assignment RENAME COLUMN star TO domain;",
 ];
 
 /// Runs every step the store has not yet had. A store from a newer Deck is
@@ -51,25 +59,33 @@ mod tests {
     #[test]
     fn a_store_from_a_newer_deck_is_refused() -> Result<()> {
         let connection = Connection::open_in_memory()?;
-        connection.execute_batch("PRAGMA user_version = 3")?;
+        connection.execute_batch("PRAGMA user_version = 4")?;
 
         assert!(Store::prepare(connection).is_err());
         Ok(())
     }
 
     #[test]
-    fn an_older_store_gains_what_is_new_and_keeps_its_stars() -> Result<()> {
+    fn an_older_store_is_upgraded_and_keeps_its_records() -> Result<()> {
         let connection = Connection::open_in_memory()?;
         connection.execute_batch(MIGRATIONS[0])?;
-        connection
-            .execute_batch("INSERT INTO star (name) VALUES ('Kept'); PRAGMA user_version = 1")?;
+        connection.execute_batch(
+            "INSERT INTO star (name) VALUES ('Kept'), ('Under');
+             INSERT INTO link (larger, smaller) VALUES (1, 2);
+             INSERT INTO placement (star, agent, session) VALUES (2, 'claude', 'a');
+             PRAGMA user_version = 1",
+        )?;
 
-        let store = Store::prepare(connection)?;
+        let mut store = Store::prepare(connection)?;
 
-        assert_eq!(store.stars()?[0].name, "Kept");
-        assert_eq!(store.last_folder()?, None);
+        assert_eq!(store.domains()?[0].name, "Kept");
+        assert_eq!(store.links()?.len(), 1);
+        assert_eq!(store.sessions_on(store.domains()?[0].id, true)?.len(), 1);
         store.set_last_folder(Path::new("/work"))?;
         assert_eq!(store.last_folder()?, Some("/work".into()));
+        // Deleting still takes links and assignments along after the renames.
+        store.delete_domain(store.domains()?[1].id)?;
+        assert!(store.links()?.is_empty() && store.assignments()?.is_empty());
         Ok(())
     }
 }

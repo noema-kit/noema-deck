@@ -1,6 +1,6 @@
 [package]
 name = "noema-deck-core"
-description = "The universe of stars, the sessions on them and the shell panes behind Noema Deck"
+description = "Domains, the sessions assigned to them and the terminal panes behind Noema Deck"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

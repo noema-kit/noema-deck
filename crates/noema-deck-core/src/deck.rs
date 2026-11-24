@@ -1,22 +1,23 @@
-//! One running Deck: the universe and the shell panes, shared by every window
+//! One running Deck: the map and the shell panes, shared by every window
 //! and connection.
 
-use std::{path::Path, time::Duration};
+use std::{path::Path, thread, time::Duration};
 
 use anyhow::{Context, Result};
 use parking_lot::Mutex;
 
 use crate::{
     agent::claude,
+    folder,
+    map::{self, Map, Snapshot},
     pane::{self, Panes, login_environment},
-    universe::{self, Snapshot, Universe},
 };
 
 /// How long a read waits for a pane's output before answering with none.
 const READ_WAIT: Duration = Duration::from_secs(20);
 
 pub struct Deck {
-    universe: Mutex<Universe>,
+    map: Mutex<Map>,
     panes: Panes,
 }
 
@@ -24,38 +25,46 @@ impl Deck {
     /// Opens the store at `store`, or the per-user one, beside Claude Code's
     /// own sessions.
     pub fn open(store: Option<&Path>) -> Result<Self> {
-        Ok(Self { universe: Mutex::new(Universe::at(store)?), panes: Panes::default() })
+        // Asking the login shell for its environment can take a second, so it
+        // is asked now and not when the first pane opens.
+        thread::spawn(login_environment);
+        Ok(Self { map: Mutex::new(Map::at(store)?), panes: Panes::default() })
     }
 
     /// Answers a request about the map.
-    pub fn map(&self, request: universe::Request) -> Result<Snapshot> {
-        self.universe.lock().handle(request)
+    pub fn map(&self, request: map::Request) -> Result<Snapshot> {
+        self.map.lock().handle(request)
     }
 
-    /// Answers a request about a pane. The universe is held only for a moment
+    /// Answers a request about a pane. The map is held only for a moment
     /// around opening and closing, so a waiting read never holds up the map.
     pub fn pane(&self, request: pane::Request) -> Result<pane::Reply> {
         let mut reply = pane::Reply::default();
         match request {
             pane::Request::Open { session, rows, cols } => {
                 let launch = {
-                    let universe = self.universe.lock();
+                    let map = self.map.lock();
                     let session =
-                        universe.session(&session).context("That session is no longer listed")?;
-                    claude::open(session)?
+                        map.session(&session).context("That session is no longer listed")?;
+                    claude::for_pane(claude::open(session)?)
                 };
                 reply.pane = Some(self.panes.open(&launch, login_environment(), rows, cols)?);
             }
-            pane::Request::Start { star, folder, rows, cols } => {
-                let (key, launch) = self.universe.lock().plan_start(star, &folder)?;
+            pane::Request::Start { domain, folder, rows, cols } => {
+                let (key, launch) = self.map.lock().plan_start(domain, &folder)?;
+                let launch = claude::for_pane(launch);
                 let pane = self.panes.open(&launch, login_environment(), rows, cols)?;
                 let recorded =
-                    self.universe.lock().record_start(star, key.clone(), &launch.folder, pane);
+                    self.map.lock().record_start(domain, key.clone(), &launch.folder, pane);
                 if recorded.is_err() {
                     self.panes.close(pane);
                 }
                 recorded?;
                 (reply.pane, reply.session) = (Some(pane), Some(key));
+            }
+            pane::Request::Shell { folder, rows, cols } => {
+                let launch = pane::shell(&folder::from_label(&folder))?;
+                reply.pane = Some(self.panes.open(&launch, login_environment(), rows, cols)?);
             }
             pane::Request::Read { pane } => {
                 let (data, exited) = self.panes.read(pane, READ_WAIT)?;
@@ -65,7 +74,7 @@ impl Deck {
             pane::Request::Resize { pane, rows, cols } => self.panes.resize(pane, rows, cols)?,
             pane::Request::Close { pane } => {
                 self.panes.close(pane);
-                self.universe.lock().settle(pane)?;
+                self.map.lock().settle(pane)?;
             }
         }
         Ok(reply)

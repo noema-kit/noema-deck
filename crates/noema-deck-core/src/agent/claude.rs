@@ -19,14 +19,17 @@ use serde::Deserialize;
 use super::{Agent, Launch};
 use crate::session::{Session, SessionKey};
 
-/// Where Claude Code stores transcripts: `$CLAUDE_CONFIG_DIR/projects`, else
-/// `~/.claude/projects`.
+/// Claude Code's own folder: `$CLAUDE_CONFIG_DIR`, else `~/.claude`.
+fn config_dir() -> Result<PathBuf> {
+    match env::var_os("CLAUDE_CONFIG_DIR") {
+        Some(dir) if !dir.is_empty() => Ok(dir.into()),
+        _ => Ok(env::home_dir().context("No home directory")?.join(".claude")),
+    }
+}
+
+/// Where Claude Code stores transcripts.
 pub fn projects_dir() -> Result<PathBuf> {
-    let config = match env::var_os("CLAUDE_CONFIG_DIR") {
-        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
-        _ => env::home_dir().context("No home directory")?.join(".claude"),
-    };
-    Ok(config.join("projects"))
+    Ok(config_dir()?.join("projects"))
 }
 
 /// Remembers each transcript as last read. Transcripts run to megabytes and
@@ -85,6 +88,37 @@ pub fn start(id: &str, folder: &Path) -> Result<Launch> {
         program: program(),
         args: vec!["--session-id".into(), id.into()],
     })
+}
+
+/// Fits `launch` to a pane, whose terminal is dark. A person who chose one of
+/// Claude Code's light themes gets its dark counterpart for this run only.
+/// Their own settings are left alone.
+#[must_use]
+pub fn for_pane(mut launch: Launch) -> Launch {
+    if let Some(theme) = config_dir().ok().and_then(|config| dark_counterpart(&config)) {
+        let settings = serde_json::json!({ "theme": theme });
+        launch.args.extend(["--settings".into(), settings.to_string()]);
+    }
+    launch
+}
+
+/// The dark theme matching the light one chosen in the Claude Code folder
+/// `config`, if a light one is chosen there.
+fn dark_counterpart(config: &Path) -> Option<String> {
+    // The theme is in the settings file, or in the older file beside the folder.
+    let beside = config.with_file_name(".claude.json");
+    let chosen = [config.join("settings.json"), beside].iter().find_map(|file| theme(file))?;
+    Some(format!("dark{}", chosen.strip_prefix("light")?))
+}
+
+/// The theme a Claude Code settings file names, if it can be read and has one.
+fn theme(settings: &Path) -> Option<String> {
+    #[derive(Deserialize)]
+    struct Settings {
+        theme: String,
+    }
+    let settings: Settings = serde_json::from_reader(File::open(settings).ok()?).ok()?;
+    Some(settings.theme)
 }
 
 /// The Claude Code executable: `$NOEMA_DECK_CLAUDE` when set, else `claude`
@@ -255,6 +289,22 @@ mod tests {
 
         fs::remove_file(project.join(&name))?;
         assert!(listing.sessions(root.path())?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_light_theme_has_a_dark_counterpart_for_panes() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let config = root.path().join("claude");
+        fs::create_dir(&config)?;
+        assert_eq!(dark_counterpart(&config), None);
+
+        fs::write(root.path().join(".claude.json"), r#"{"theme":"light"}"#)?;
+        assert_eq!(dark_counterpart(&config).as_deref(), Some("dark"));
+        fs::write(config.join("settings.json"), r#"{"theme":"light-daltonized","other":1}"#)?;
+        assert_eq!(dark_counterpart(&config).as_deref(), Some("dark-daltonized"));
+        fs::write(config.join("settings.json"), r#"{"theme":"dark-ansi"}"#)?;
+        assert_eq!(dark_counterpart(&config), None);
         Ok(())
     }
 

@@ -1,24 +1,24 @@
-//! Turning a folder tree into stars: a folder becomes a star, and each folder
-//! inside it a smaller star beneath.
+//! Turning a folder tree into domains: a folder becomes a domain, and each folder
+//! inside it a subdomain.
 
 use std::{f64::consts::TAU, fs, path::Path};
 
 use anyhow::{Context, Result, ensure};
 
-/// How many levels of folders inside the imported one become stars by default.
+/// How many levels of folders inside the imported one become domains by default.
 pub const DEPTH: usize = 2;
 /// A tree with more folders than this is refused as a likely mistake.
 const LIMIT: usize = 300;
-/// The room each outermost star gets along its ring.
+/// The room each outermost domain gets along its ring.
 const GAP: f64 = 120.0;
 /// The least distance between one ring and the next.
 const RING: f64 = 230.0;
 
-/// A star to add: its name, its place, and the earlier seed it hangs under.
+/// A domain to add: its name, its position, and the earlier seed it is under.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Seed {
     pub name: String,
-    pub larger: Option<usize>,
+    pub parent: Option<usize>,
     pub x: f64,
     pub y: f64,
 }
@@ -33,8 +33,8 @@ impl Folder {
         1 + self.inside.iter().map(Self::count).sum::<usize>()
     }
 
-    /// The outermost folders beneath, which is the share of a ring this
-    /// folder's stars need.
+    /// The outermost folders under, which is the share of a ring this
+    /// folder's domains need.
     fn span(&self) -> usize {
         self.inside.iter().map(Self::span).sum::<usize>().max(1)
     }
@@ -44,15 +44,15 @@ impl Folder {
     }
 }
 
-/// The stars for `folder` and the folders up to `depth` levels inside it. The
-/// folder's own star sits at `origin` and each level forms a ring around it.
+/// The domains for `folder` and the folders up to `depth` levels inside it. The
+/// folder's own domain sits at `origin` and each level forms a ring around it.
 /// Hidden folders are left out and links are not followed.
 pub fn seeds(folder: &Path, depth: usize, origin: (f64, f64)) -> Result<Vec<Seed>> {
     let folder =
         folder.canonicalize().with_context(|| format!("{} is not a folder", folder.display()))?;
     fs::read_dir(&folder).with_context(|| format!("{} is not a folder", folder.display()))?;
     let tree = read(&folder, depth)
-        .with_context(|| format!("{} has no name to give a star", folder.display()))?;
+        .with_context(|| format!("{} has no name to give a domain", folder.display()))?;
     let count = tree.count();
     ensure!(
         count <= LIMIT,
@@ -71,7 +71,7 @@ pub fn seeds(folder: &Path, depth: usize, origin: (f64, f64)) -> Result<Vec<Seed
 fn read(folder: &Path, depth: usize) -> Option<Folder> {
     let name = folder.file_name()?.to_str()?.to_owned();
     let mut inside = Vec::new();
-    // A folder that cannot be read still becomes a star, with none beneath it.
+    // A folder that cannot be read still becomes a domain, with none under it.
     if let (1.., Ok(entries)) = (depth, fs::read_dir(folder)) {
         for entry in entries.flatten() {
             let hidden = entry.file_name().to_string_lossy().starts_with('.');
@@ -94,15 +94,15 @@ struct Layout {
 }
 
 impl Layout {
-    /// Places `folder` in the middle of its `arc`, a start angle and a width,
+    /// Puts `folder` in the middle of its `arc`, a start angle and a width,
     /// on the ring for its `level`, then shares the arc among what is inside.
-    fn plant(&mut self, folder: &Folder, larger: Option<usize>, level: usize, arc: (f64, f64)) {
+    fn plant(&mut self, folder: &Folder, parent: Option<usize>, level: usize, arc: (f64, f64)) {
         let (start, width) = arc;
         let (angle, radius) = (start + width / 2.0, level as f64 * self.step);
         let index = self.seeds.len();
         self.seeds.push(Seed {
             name: folder.name.clone(),
-            larger,
+            parent,
             x: self.origin.0 + radius * angle.cos(),
             y: self.origin.1 + radius * angle.sin(),
         });
@@ -128,13 +128,13 @@ mod tests {
     }
 
     #[test]
-    fn a_nested_folder_becomes_a_star_under_its_parent_folders_star() -> Result<()> {
+    fn a_nested_folder_becomes_a_domain_under_its_parent_folders_domain() -> Result<()> {
         let root = tree(&["topics/b/x", "topics/b/y/too-deep", "topics/a", "topics/.git/objects"])?;
         fs::write(root.path().join("topics/notes.txt"), "not a folder")?;
 
         let seeds = seeds(&root.path().join("topics"), 2, (100.0, 50.0))?;
 
-        let found: Vec<_> = seeds.iter().map(|seed| (seed.name.as_str(), seed.larger)).collect();
+        let found: Vec<_> = seeds.iter().map(|seed| (seed.name.as_str(), seed.parent)).collect();
         let expected =
             [("topics", None), ("a", Some(0)), ("b", Some(0)), ("x", Some(2)), ("y", Some(2))];
         assert_eq!(found, expected);
@@ -142,7 +142,7 @@ mod tests {
     }
 
     #[test]
-    fn each_level_forms_a_ring_with_room_between_stars() -> Result<()> {
+    fn each_level_forms_a_ring_with_room_between_domains() -> Result<()> {
         let root = tree(&["t/a/1", "t/a/2", "t/a/3", "t/b/4", "t/c", "t/d/5", "t/d/6"])?;
 
         let seeds = seeds(&root.path().join("t"), 2, (100.0, 50.0))?;
@@ -150,7 +150,7 @@ mod tests {
         let from_origin = |seed: &Seed| (seed.x - 100.0).hypot(seed.y - 50.0);
         assert_eq!((seeds[0].x, seeds[0].y), (100.0, 50.0));
         for seed in &seeds[1..] {
-            let rings = if seed.larger == Some(0) { 1.0 } else { 2.0 };
+            let rings = if seed.parent == Some(0) { 1.0 } else { 2.0 };
             assert!((from_origin(seed) - rings * RING).abs() < 1e-6, "{seed:?}");
         }
         for (index, seed) in seeds.iter().enumerate() {

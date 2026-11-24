@@ -7,7 +7,9 @@ mod request;
 
 use std::{
     collections::HashMap,
+    env,
     io::{Read, Write},
+    path::Path,
     sync::{
         Arc,
         atomic::{AtomicU32, Ordering},
@@ -16,7 +18,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use parking_lot::Mutex;
 use portable_pty::{Child, ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::{Deserialize, Serialize};
@@ -25,6 +27,20 @@ pub(crate) use self::environment::login as login_environment;
 use self::output::Output;
 pub use self::request::{Reply, Request};
 use crate::agent::Launch;
+
+/// The command that runs the user's own shell in `folder`, as a new terminal
+/// tab would.
+pub(crate) fn shell(folder: &Path) -> Result<Launch> {
+    ensure!(folder.is_dir(), "{} is not a folder", folder.display());
+    let login = login_environment().and_then(|environment| {
+        environment.iter().find_map(|(name, value)| (name == "SHELL").then(|| value.clone()))
+    });
+    let program = login
+        .or_else(|| env::var("SHELL").ok())
+        .filter(|shell| !shell.is_empty())
+        .unwrap_or_else(|| "/bin/sh".into());
+    Ok(Launch { folder: folder.into(), program, args: vec!["-l".into()] })
+}
 
 /// A pane's identity for as long as Deck runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -53,7 +69,7 @@ struct Pane {
 }
 
 impl Panes {
-    /// Runs `launch` on a new pseudoterminal, with `environment` in place of
+    /// Runs `launch` on a new pseudoterminal, with `environment` instead of
     /// this process's own when one is given.
     pub fn open(
         &self,
@@ -146,8 +162,10 @@ fn follow(
         while let Ok(count @ 1..) = reader.read(&mut chunk) {
             written.push(&chunk[..count]);
         }
+        // The terminal closed, so the process and all it started are gone.
+        written.end();
     });
-    // The process is watched directly. Its terminal can stay open after it has
+    // The process is watched as well. Its terminal can stay open after it has
     // gone, held by something it started.
     thread::spawn(move || {
         let _ = child.wait();
@@ -163,7 +181,7 @@ fn size(rows: u16, cols: u16) -> PtySize {
 
 #[cfg(test)]
 mod tests {
-    use std::{env, process::Command};
+    use std::process::Command;
 
     use super::*;
 

@@ -7,7 +7,7 @@ use std::{fmt, path::PathBuf, str::FromStr};
 use anyhow::{Error, bail};
 use serde::{Deserialize, Serialize};
 
-/// An agent whose sessions Deck can place on stars.
+/// An agent whose sessions Deck can assign to domains.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Agent {

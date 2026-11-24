@@ -11,6 +11,8 @@
     "windows": [
       {
         "title": "Noema Deck",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
         "width": 1280,
         "height": 820,
         "minWidth": 900,

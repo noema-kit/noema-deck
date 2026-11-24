@@ -13,8 +13,8 @@ use clap::Parser;
 use noema_deck_cli::Cli;
 use noema_deck_core::{
     Deck, Snapshot,
+    map::Request as MapRequest,
     pane::{Reply as PaneReply, Request as PaneRequest},
-    universe::Request as MapRequest,
 };
 use tauri::{AppHandle, State, webview::PageLoadEvent};
 

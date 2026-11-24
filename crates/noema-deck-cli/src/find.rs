@@ -1,23 +1,24 @@
-//! Finding the star or session a person named on the command line.
+//! Finding the domain or session a person named on the command line.
 
 use anyhow::{Result, bail};
-use noema_deck_core::{SessionKey, Snapshot, StarId};
+use noema_deck_core::{DomainId, SessionKey, Snapshot};
 
-/// A star given by its ID, or by a name only one star has.
-pub fn star(snapshot: &Snapshot, text: &str) -> Result<StarId> {
-    let stars = &snapshot.stars;
-    if let Ok(id) = text.parse::<StarId>()
-        && stars.iter().any(|star| star.id == id)
+/// A domain given by its ID, or by a name only one domain has.
+pub fn domain(snapshot: &Snapshot, text: &str) -> Result<DomainId> {
+    let domains = &snapshot.domains;
+    if let Ok(id) = text.parse::<DomainId>()
+        && domains.iter().any(|domain| domain.id == id)
     {
         return Ok(id);
     }
-    let named: Vec<_> = stars.iter().filter(|star| star.name.eq_ignore_ascii_case(text)).collect();
+    let named: Vec<_> =
+        domains.iter().filter(|domain| domain.name.eq_ignore_ascii_case(text)).collect();
     match named[..] {
-        [star] => Ok(star.id),
-        [] => bail!("No star `{text}`"),
+        [domain] => Ok(domain.id),
+        [] => bail!("No domain `{text}`"),
         _ => {
-            let ids: Vec<_> = named.iter().map(|star| star.id.to_string()).collect();
-            bail!("Several stars are named `{text}`. Use an ID: {}", ids.join(", "))
+            let ids: Vec<_> = named.iter().map(|domain| domain.id.to_string()).collect();
+            bail!("Several domains are named `{text}`. Use an ID: {}", ids.join(", "))
         }
     }
 }

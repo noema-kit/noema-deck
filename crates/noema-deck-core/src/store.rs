@@ -1,10 +1,10 @@
-//! Deck's own records, kept in one `SQLite` file: stars, the links between
-//! them, which sessions sit on which stars, and a few settings.
+//! Deck's own records, kept in one `SQLite` file: domains, the links between
+//! them, which sessions belong to which domains, and a few settings.
 
-mod placements;
+mod assignments;
+mod domains;
 mod schema;
 mod settings;
-mod stars;
 
 use std::{
     env, fs,

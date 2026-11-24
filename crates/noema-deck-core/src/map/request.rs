@@ -1,8 +1,8 @@
-//! What the interface can ask of the universe.
+//! What the interface can ask of the map.
 
 use serde::Deserialize;
 
-use crate::{session::SessionKey, star::StarId};
+use crate::{domain::DomainId, session::SessionKey};
 
 /// A request about the map. Every one is answered with a fresh
 /// [`Snapshot`](super::Snapshot).
@@ -12,44 +12,44 @@ pub enum Request {
     Snapshot,
     /// Re-read the sessions from the agent.
     Refresh,
-    AddStar {
+    AddDomain {
         name: String,
-        larger: Option<StarId>,
+        parent: Option<DomainId>,
         position: Option<(f64, f64)>,
     },
-    /// Add a folder and the folders inside it as a tree of stars.
+    /// Add a folder and the folders inside it as a tree of domains.
     Import {
         folder: String,
-        larger: Option<StarId>,
+        parent: Option<DomainId>,
         position: Option<(f64, f64)>,
         depth: Option<usize>,
     },
-    RenameStar {
-        star: StarId,
+    RenameDomain {
+        domain: DomainId,
         name: String,
     },
-    MoveStar {
-        star: StarId,
+    MoveDomain {
+        domain: DomainId,
         x: f64,
         y: f64,
     },
-    DeleteStar {
-        star: StarId,
+    DeleteDomain {
+        domain: DomainId,
     },
     Link {
-        larger: StarId,
-        smaller: StarId,
+        parent: DomainId,
+        child: DomainId,
     },
     Unlink {
-        larger: StarId,
-        smaller: StarId,
+        parent: DomainId,
+        child: DomainId,
     },
-    Place {
-        star: StarId,
+    Assign {
+        domain: DomainId,
         sessions: Vec<SessionKey>,
     },
-    Unplace {
-        star: StarId,
+    Unassign {
+        domain: DomainId,
         session: SessionKey,
     },
 }

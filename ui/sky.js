@@ -1,7 +1,7 @@
 // The sky: every star, link and name painted on one canvas. Panning or zooming
 // repaints a frame and builds no elements, and nothing is painted while the map
 // is still. This file knows nothing of sessions or requests: `app.js` hands it
-// stars and links and asks it where things are.
+// domains, each drawn as a star, with their links, and asks it where things are.
 
 const TAU = Math.PI * 2;
 const SAVED = "noema-deck-view"; // Where the pan and zoom are kept between runs.

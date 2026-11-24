@@ -1,8 +1,8 @@
 #!/bin/sh
 # Runs the interface's self-test inside the real desktop window. The app gets a
-# fixture store, three fixture sessions, a small folder tree and a stand-in for
-# Claude Code, so nothing of yours is read or changed. Pass `hold` to keep a
-# pane open for fifteen seconds partway through.
+# fixture store, three fixture sessions, a small folder tree, a stand-in for
+# Claude Code and a plain shell, so nothing of yours is read or changed. Pass
+# `hold` to keep a pane open for fifteen seconds partway through.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -30,5 +30,6 @@ chmod +x "$work/agent"
 CLAUDE_CONFIG_DIR="$work/claude" \
 NOEMA_DECK_STORE="$work/deck.db" \
 NOEMA_DECK_CLAUDE="$work/agent" \
+SHELL=/bin/sh \
 NOEMA_DECK_SELFTEST="${1:-run}" \
     cargo run --quiet -p noema-deck

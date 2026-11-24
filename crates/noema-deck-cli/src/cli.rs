@@ -6,11 +6,7 @@ use clap::{Parser, Subcommand};
 use noema_deck_core::import;
 
 #[derive(Parser)]
-#[command(
-    name = "noema-deck",
-    version,
-    about = "Arrange Claude Code sessions on a universe of topic stars"
-)]
+#[command(name = "noema-deck", version, about = "Organise Claude Code sessions by domain")]
 pub struct Cli {
     /// Store file. Defaults to the per-user application data directory.
     #[arg(long, global = true, value_name = "PATH")]
@@ -23,9 +19,9 @@ pub struct Cli {
 pub enum Command {
     /// List sessions, most recent first.
     Sessions {
-        /// Only sessions on no star.
+        /// Only sessions assigned to no domain.
         #[arg(long)]
-        unsorted: bool,
+        unassigned: bool,
         /// Only sessions whose title or folder contains this text.
         #[arg(long, value_name = "TEXT")]
         query: Option<String>,
@@ -35,24 +31,24 @@ pub enum Command {
         /// The session's ID, or the start of it.
         session: String,
     },
-    /// Put a session on a star.
-    Place {
+    /// Assign a session to a domain.
+    Assign {
         /// The session's ID, or the start of it.
         session: String,
-        /// The star's ID or name.
-        star: String,
+        /// The domain's ID or name.
+        domain: String,
     },
-    /// Take a session off a star.
-    Unplace {
+    /// Remove a session from a domain.
+    Unassign {
         /// The session's ID, or the start of it.
         session: String,
-        /// The star's ID or name.
-        star: String,
+        /// The domain's ID or name.
+        domain: String,
     },
-    /// Edit and inspect stars.
+    /// Edit and inspect domains.
     #[command(subcommand)]
-    Star(StarCommand),
-    /// Serve the map to a browser on this machine.
+    Domain(DomainCommand),
+    /// Serve the interface to a browser on this machine.
     Serve {
         #[arg(long, default_value_t = 4270)]
         port: u16,
@@ -63,39 +59,39 @@ pub enum Command {
 }
 
 #[derive(Subcommand)]
-pub enum StarCommand {
-    /// Show every star beneath its larger stars, with its session count.
+pub enum DomainCommand {
+    /// Show the domain tree with session counts.
     List,
-    /// Add a top star, or a smaller star under another.
+    /// Add a root domain, or a subdomain under another.
     Add {
         name: String,
-        /// Hang the new star under this star.
+        /// The parent domain.
         #[arg(long, value_name = "STAR")]
         under: Option<String>,
     },
-    /// Add a folder, and the folders inside it, as a tree of stars.
+    /// Add a folder, and the folders inside it, as a tree of domains.
     Import {
-        /// The folder whose own star heads the tree.
+        /// The folder whose own domain heads the tree.
         folder: PathBuf,
-        /// Hang the folder's star under this star.
+        /// The parent domain.
         #[arg(long, value_name = "STAR")]
         under: Option<String>,
         /// How many levels of folders inside it to add.
         #[arg(long, default_value_t = import::DEPTH)]
         depth: usize,
     },
-    /// Rename a star.
-    Rename { star: String, name: String },
-    /// Delete a star. Its sessions stay with Claude Code.
-    Delete { star: String },
-    /// Hang a smaller star under a larger one.
-    Link { larger: String, smaller: String },
-    /// Remove the link between a larger and a smaller star.
-    Unlink { larger: String, smaller: String },
-    /// List the sessions on a star.
+    /// Rename a domain.
+    Rename { domain: String, name: String },
+    /// Delete a domain. Its sessions stay with Claude Code.
+    Delete { domain: String },
+    /// Make one domain a subdomain of another.
+    Link { parent: String, child: String },
+    /// Remove the link between a parent and a subdomain.
+    Unlink { parent: String, child: String },
+    /// List the sessions in a domain.
     Show {
-        star: String,
-        /// Include the stars beneath it.
+        domain: String,
+        /// Include the subdomains.
         #[arg(long)]
         all: bool,
     },

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::PaneId;
-use crate::{session::SessionKey, star::StarId};
+use crate::{domain::DomainId, session::SessionKey};
 
 /// A request about a pane.
 #[derive(Debug, Deserialize)]
@@ -15,10 +15,17 @@ pub enum Request {
         rows: u16,
         cols: u16,
     },
-    /// Start a new session on a star, in a new pane. Answered with the pane's
+    /// Start a new session on a domain, in a new pane. Answered with the pane's
     /// ID and the session's key.
     Start {
-        star: StarId,
+        domain: DomainId,
+        folder: String,
+        rows: u16,
+        cols: u16,
+    },
+    /// Run the user's own shell in a folder, in a new pane. Answered with the
+    /// pane's ID.
+    Shell {
         folder: String,
         rows: u16,
         cols: u16,

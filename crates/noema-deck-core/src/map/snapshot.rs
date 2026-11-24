@@ -1,4 +1,4 @@
-//! The universe as the interface draws it.
+//! The map as the interface draws it.
 
 use std::collections::HashMap;
 
@@ -6,34 +6,34 @@ use anyhow::Result;
 use serde::Serialize;
 
 use crate::{
+    domain::DomainId,
     folder,
     session::{Session, SessionKey},
-    star::StarId,
     store::Store,
 };
 
 /// Everything on the map at one moment.
 #[derive(Debug, Serialize)]
 pub struct Snapshot {
-    pub stars: Vec<StarView>,
-    /// Every link as `[larger, smaller]`.
-    pub links: Vec<(StarId, StarId)>,
-    /// Every session the agent lists, most recent first. One with no stars is
-    /// unsorted.
+    pub domains: Vec<DomainView>,
+    /// Every link as `[parent, child]`.
+    pub links: Vec<(DomainId, DomainId)>,
+    /// Every session the agent lists, most recent first. One with no domains is
+    /// unassigned.
     pub sessions: Vec<SessionView>,
-    /// Placed sessions the agent no longer lists.
+    /// Assigned sessions the agent no longer lists.
     pub missing: Vec<MissingSession>,
     /// The folder the last new session was started in.
     pub last_folder: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct StarView {
-    pub id: StarId,
+pub struct DomainView {
+    pub id: DomainId,
     pub name: String,
     pub x: f64,
     pub y: f64,
-    /// The distinct sessions on this star and on every star beneath it.
+    /// The distinct sessions on this domain and on every subdomain.
     pub sessions: Vec<SessionKey>,
     /// The most recent activity among those sessions.
     pub updated: Option<i64>,
@@ -46,15 +46,15 @@ pub struct SessionView {
     pub title: String,
     pub folder: Option<String>,
     pub updated: i64,
-    /// The stars this session sits on directly.
-    pub stars: Vec<StarId>,
+    /// The domains this session belongs to directly.
+    pub domains: Vec<DomainId>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct MissingSession {
     #[serde(flatten)]
     pub key: SessionKey,
-    pub stars: Vec<StarId>,
+    pub domains: Vec<DomainId>,
 }
 
 impl Snapshot {
@@ -62,20 +62,20 @@ impl Snapshot {
     pub(super) fn of(store: &Store, listed: &[Session]) -> Result<Self> {
         let updated: HashMap<_, _> =
             listed.iter().map(|session| (&session.key, session.updated)).collect();
-        let stars = store
-            .stars()?
+        let domains = store
+            .domains()?
             .into_iter()
-            .map(|star| {
-                let sessions = store.sessions_on(star.id, true)?;
+            .map(|domain| {
+                let sessions = store.sessions_on(domain.id, true)?;
                 let latest = sessions.iter().filter_map(|key| updated.get(key).copied()).max();
-                let (id, name, x, y) = (star.id, star.name, star.x, star.y);
-                Ok(StarView { id, name, x, y, sessions, updated: latest })
+                let (id, name, x, y) = (domain.id, domain.name, domain.x, domain.y);
+                Ok(DomainView { id, name, x, y, sessions, updated: latest })
             })
             .collect::<Result<_>>()?;
 
-        let mut stars_of = HashMap::<SessionKey, Vec<StarId>>::new();
-        for (star, session) in store.placements()? {
-            stars_of.entry(session).or_default().push(star);
+        let mut domains_of = HashMap::<SessionKey, Vec<DomainId>>::new();
+        for (domain, session) in store.assignments()? {
+            domains_of.entry(session).or_default().push(domain);
         }
         let sessions = listed
             .iter()
@@ -84,16 +84,16 @@ impl Snapshot {
                 title: session.title.clone(),
                 folder: session.folder.as_deref().map(folder::label),
                 updated: session.updated,
-                stars: stars_of.remove(&session.key).unwrap_or_default(),
+                domains: domains_of.remove(&session.key).unwrap_or_default(),
             })
             .collect();
-        // Whatever is left was placed but is no longer listed by its agent.
+        // Whatever is left was assigned but is no longer listed by its agent.
         let mut missing: Vec<_> =
-            stars_of.into_iter().map(|(key, stars)| MissingSession { key, stars }).collect();
+            domains_of.into_iter().map(|(key, domains)| MissingSession { key, domains }).collect();
         missing.sort_by(|a, b| a.key.cmp(&b.key));
 
         Ok(Self {
-            stars,
+            domains,
             links: store.links()?,
             sessions,
             missing,

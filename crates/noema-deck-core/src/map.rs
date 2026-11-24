@@ -1,4 +1,4 @@
-//! The universe: every star, link and placement, joined with the sessions the
+//! The map: every domain, link and assignment, joined with the sessions the
 //! agent lists. One request goes in and one snapshot comes out.
 
 mod request;
@@ -14,18 +14,18 @@ use uuid::Uuid;
 
 pub use self::{
     request::Request,
-    snapshot::{MissingSession, SessionView, Snapshot, StarView},
+    snapshot::{DomainView, MissingSession, SessionView, Snapshot},
 };
 use crate::{
     agent::{Agent, Launch, claude},
+    domain::DomainId,
     folder, import,
     pane::PaneId,
     session::{Session, SessionKey},
-    star::StarId,
     store::{self, Store},
 };
 
-pub struct Universe {
+pub struct Map {
     store: Store,
     projects: PathBuf,
     listing: claude::Listing,
@@ -37,19 +37,19 @@ pub struct Universe {
     started: Vec<(PaneId, SessionKey)>,
 }
 
-impl Universe {
+impl Map {
     /// Opens the store at `store` and reads Claude Code's sessions from
     /// `projects`.
     pub fn open(store: &Path, projects: PathBuf) -> Result<Self> {
-        let mut universe = Self {
+        let mut map = Self {
             store: Store::open(store)?,
             projects,
             listing: claude::Listing::default(),
             sessions: Vec::new(),
             started: Vec::new(),
         };
-        universe.refresh()?;
-        Ok(universe)
+        map.refresh()?;
+        Ok(map)
     }
 
     /// Opens the store at `store`, or the per-user one, beside Claude Code's
@@ -62,29 +62,29 @@ impl Universe {
         Self::open(&store, claude::projects_dir()?)
     }
 
-    /// Carries out a request and answers with the universe as it then stands.
+    /// Carries out a request and answers with the map as it then stands.
     pub fn handle(&mut self, request: Request) -> Result<Snapshot> {
         match request {
             Request::Snapshot => {}
             Request::Refresh => self.refresh()?,
-            Request::AddStar { name, larger, position } => {
-                self.store.add_star(&name, larger, position)?;
+            Request::AddDomain { name, parent, position } => {
+                self.store.add_domain(&name, parent, position)?;
             }
-            Request::Import { folder, larger, position, depth } => {
+            Request::Import { folder, parent, position, depth } => {
                 let depth = depth.unwrap_or(import::DEPTH);
-                self.import(&folder::from_label(&folder), larger, position, depth)?;
+                self.import(&folder::from_label(&folder), parent, position, depth)?;
             }
-            Request::RenameStar { star, name } => self.store.rename_star(star, &name)?,
-            Request::MoveStar { star, x, y } => self.store.move_star(star, x, y)?,
-            Request::DeleteStar { star } => self.store.delete_star(star)?,
-            Request::Link { larger, smaller } => self.store.link(larger, smaller)?,
-            Request::Unlink { larger, smaller } => self.store.unlink(larger, smaller)?,
-            Request::Place { star, sessions } => {
+            Request::RenameDomain { domain, name } => self.store.rename_domain(domain, &name)?,
+            Request::MoveDomain { domain, x, y } => self.store.move_domain(domain, x, y)?,
+            Request::DeleteDomain { domain } => self.store.delete_domain(domain)?,
+            Request::Link { parent, child } => self.store.link(parent, child)?,
+            Request::Unlink { parent, child } => self.store.unlink(parent, child)?,
+            Request::Assign { domain, sessions } => {
                 for session in &sessions {
-                    self.store.place(star, session)?;
+                    self.store.assign(domain, session)?;
                 }
             }
-            Request::Unplace { star, session } => self.store.unplace(star, &session)?,
+            Request::Unassign { domain, session } => self.store.unassign(domain, &session)?,
         }
         self.snapshot()
     }
@@ -99,47 +99,47 @@ impl Universe {
         self.sessions.iter().find(|session| &session.key == key)
     }
 
-    /// Adds a star and answers with its ID.
-    pub fn add_star(&mut self, name: &str, larger: Option<StarId>) -> Result<StarId> {
-        self.store.add_star(name, larger, None)
+    /// Adds a domain and answers with its ID.
+    pub fn add_domain(&mut self, name: &str, parent: Option<DomainId>) -> Result<DomainId> {
+        self.store.add_domain(name, parent, None)
     }
 
     /// Adds `folder` and the folders up to `depth` levels inside it as a tree
-    /// of stars, and answers with how many were added.
+    /// of domains, and answers with how many were added.
     pub fn import(
         &mut self,
         folder: &Path,
-        larger: Option<StarId>,
+        parent: Option<DomainId>,
         position: Option<(f64, f64)>,
         depth: usize,
     ) -> Result<usize> {
         let origin = match position {
             Some(position) => position,
-            None => self.store.free_spot(larger)?,
+            None => self.store.free_spot(parent)?,
         };
         let seeds = import::seeds(folder, depth, origin)?;
-        Ok(self.store.add_stars(&seeds, larger)?.len())
+        Ok(self.store.add_domains(&seeds, parent)?.len())
     }
 
-    /// Chooses the ID of a new session on `star` and the command that starts
+    /// Chooses the ID of a new session on `domain` and the command that starts
     /// it in `folder`. Nothing is recorded until the command is running.
-    pub fn plan_start(&self, star: StarId, folder: &str) -> Result<(SessionKey, Launch)> {
-        self.store.require(star)?;
+    pub fn plan_start(&self, domain: DomainId, folder: &str) -> Result<(SessionKey, Launch)> {
+        self.store.require(domain)?;
         let key = SessionKey { agent: Agent::Claude, id: Uuid::new_v4().to_string() };
         let launch = claude::start(&key.id, &folder::from_label(folder))?;
         Ok((key, launch))
     }
 
-    /// Places the session now running in `pane` on `star`, so it shows there
+    /// Assigns the session now running in `pane` to `domain`, so it shows there
     /// before the agent has stored it.
     pub fn record_start(
         &mut self,
-        star: StarId,
+        domain: DomainId,
         key: SessionKey,
         folder: &Path,
         pane: PaneId,
     ) -> Result<()> {
-        self.store.place(star, &key)?;
+        self.store.assign(domain, &key)?;
         self.store.set_last_folder(folder)?;
         let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |now| now.as_secs());
         let session = Session {
@@ -154,7 +154,7 @@ impl Universe {
     }
 
     /// Tidies up after `pane` closed. A session started there that never got a
-    /// prompt was never stored, so it leaves its stars instead of going missing.
+    /// prompt was never stored, so it leaves its domains instead of going missing.
     pub fn settle(&mut self, pane: PaneId) -> Result<()> {
         self.refresh()?;
         let Some(index) = self.started.iter().position(|(started, _)| *started == pane) else {
@@ -188,176 +188,182 @@ mod tests {
     const OTHER: &str = "22222222-2222-4222-8222-222222222222";
     const PANE: PaneId = PaneId::new(7);
 
-    fn universe(folder: &Path) -> Result<Universe> {
+    fn map(folder: &Path) -> Result<Map> {
         let project = folder.join("projects/p");
         fs::create_dir_all(&project)?;
         for (id, title) in [(LISTED, "Listed"), (OTHER, "Other")] {
             let line = json!({ "type": "ai-title", "aiTitle": title, "cwd": "/work" });
             fs::write(project.join(format!("{id}.jsonl")), line.to_string())?;
         }
-        Universe::open(&folder.join("deck.db"), folder.join("projects"))
+        Map::open(&folder.join("deck.db"), folder.join("projects"))
     }
 
     /// Sends a request as the interface would and reads the answer the same way.
-    fn ask(universe: &mut Universe, command: &str, args: Value) -> Result<Value> {
+    fn ask(map: &mut Map, command: &str, args: Value) -> Result<Value> {
         let fields = [("command".to_owned(), command.into()), ("args".to_owned(), args)];
         let request = serde_json::from_value(Value::Object(fields.into_iter().collect()))?;
-        Ok(serde_json::to_value(universe.handle(request)?)?)
+        Ok(serde_json::to_value(map.handle(request)?)?)
     }
 
-    fn snapshot(universe: &Universe) -> Result<Value> {
-        Ok(serde_json::to_value(universe.snapshot()?)?)
+    fn snapshot(map: &Map) -> Result<Value> {
+        Ok(serde_json::to_value(map.snapshot()?)?)
     }
 
     #[test]
-    fn a_snapshot_rolls_sessions_up_to_larger_stars() -> Result<()> {
+    fn a_snapshot_rolls_sessions_up_to_larger_domains() -> Result<()> {
         let folder = tempfile::tempdir()?;
-        let mut universe = universe(folder.path())?;
+        let mut map = map(folder.path())?;
         let key = json!({ "agent": "claude", "id": LISTED });
-        ask(&mut universe, "add_star", json!({ "name": "Top" }))?;
-        ask(&mut universe, "add_star", json!({ "name": "Small", "larger": 1 }))?;
+        ask(&mut map, "add_domain", json!({ "name": "Top" }))?;
+        ask(&mut map, "add_domain", json!({ "name": "Small", "parent": 1 }))?;
 
-        let snapshot = ask(&mut universe, "place", json!({ "star": 2, "sessions": [key] }))?;
+        let snapshot = ask(&mut map, "assign", json!({ "domain": 2, "sessions": [key] }))?;
 
         assert_eq!(snapshot["links"], json!([[1, 2]]));
-        assert_eq!(snapshot["stars"][0]["sessions"], json!([key]));
-        assert!(snapshot["stars"][0]["updated"].is_i64());
+        assert_eq!(snapshot["domains"][0]["sessions"], json!([key]));
+        assert!(snapshot["domains"][0]["updated"].is_i64());
         let sessions = snapshot["sessions"].as_array().context("sessions")?;
         let listed = sessions.iter().find(|session| session["id"] == LISTED).context("listed")?;
-        assert_eq!(listed["stars"], json!([2]));
+        assert_eq!(listed["domains"], json!([2]));
         assert_eq!(listed["title"], "Listed");
         assert_eq!(listed["folder"], "/work");
-        let unsorted = sessions.iter().filter(|session| session["stars"] == json!([])).count();
-        assert_eq!(unsorted, 1);
+        let unassigned = sessions.iter().filter(|session| session["domains"] == json!([])).count();
+        assert_eq!(unassigned, 1);
         Ok(())
     }
 
     #[test]
-    fn a_placed_session_the_agent_no_longer_lists_is_missing() -> Result<()> {
+    fn a_assigned_session_the_agent_no_longer_lists_is_missing() -> Result<()> {
         let folder = tempfile::tempdir()?;
-        let mut universe = universe(folder.path())?;
+        let mut map = map(folder.path())?;
         let key = json!({ "agent": "claude", "id": OTHER });
-        ask(&mut universe, "add_star", json!({ "name": "Top", "position": [3.5, -2.0] }))?;
-        ask(&mut universe, "place", json!({ "star": 1, "sessions": [key] }))?;
+        ask(&mut map, "add_domain", json!({ "name": "Top", "position": [3.5, -2.0] }))?;
+        ask(&mut map, "assign", json!({ "domain": 1, "sessions": [key] }))?;
         fs::remove_file(folder.path().join(format!("projects/p/{OTHER}.jsonl")))?;
 
         let request = serde_json::from_value(json!({ "command": "refresh" }))?;
-        let snapshot = serde_json::to_value(universe.handle(request)?)?;
+        let snapshot = serde_json::to_value(map.handle(request)?)?;
 
-        assert_eq!(snapshot["missing"], json!([{ "agent": "claude", "id": OTHER, "stars": [1] }]));
-        assert_eq!(snapshot["stars"][0]["updated"], Value::Null);
-        assert_eq!(snapshot["stars"][0]["x"], 3.5);
-        assert_eq!(snapshot["stars"][0]["y"], -2.0);
+        assert_eq!(
+            snapshot["missing"],
+            json!([{ "agent": "claude", "id": OTHER, "domains": [1] }])
+        );
+        assert_eq!(snapshot["domains"][0]["updated"], Value::Null);
+        assert_eq!(snapshot["domains"][0]["x"], 3.5);
+        assert_eq!(snapshot["domains"][0]["y"], -2.0);
 
-        let unplaced = ask(&mut universe, "unplace", json!({ "star": 1, "session": key }))?;
-        assert_eq!(unplaced["missing"], json!([]));
+        let unassigned = ask(&mut map, "unassign", json!({ "domain": 1, "session": key }))?;
+        assert_eq!(unassigned["missing"], json!([]));
         Ok(())
     }
 
     #[test]
-    fn deleting_a_star_takes_its_placements_with_it() -> Result<()> {
+    fn deleting_a_domain_takes_its_assignments_with_it() -> Result<()> {
         let folder = tempfile::tempdir()?;
-        let mut universe = universe(folder.path())?;
+        let mut map = map(folder.path())?;
         let key = json!({ "agent": "claude", "id": LISTED });
-        ask(&mut universe, "add_star", json!({ "name": "Top" }))?;
-        ask(&mut universe, "place", json!({ "star": 1, "sessions": [key] }))?;
+        ask(&mut map, "add_domain", json!({ "name": "Top" }))?;
+        ask(&mut map, "assign", json!({ "domain": 1, "sessions": [key] }))?;
 
-        let snapshot = ask(&mut universe, "delete_star", json!({ "star": 1 }))?;
+        let snapshot = ask(&mut map, "delete_domain", json!({ "domain": 1 }))?;
 
-        assert_eq!(snapshot["stars"], json!([]));
+        assert_eq!(snapshot["domains"], json!([]));
         let sessions = snapshot["sessions"].as_array().context("sessions")?;
-        assert!(sessions.iter().all(|session| session["stars"] == json!([])));
+        assert!(sessions.iter().all(|session| session["domains"] == json!([])));
         assert_eq!(snapshot["missing"], json!([]));
         Ok(())
     }
 
     #[test]
-    fn importing_a_folder_adds_its_tree_under_a_star() -> Result<()> {
+    fn importing_a_folder_adds_its_tree_under_a_domain() -> Result<()> {
         let folder = tempfile::tempdir()?;
-        let mut universe = universe(folder.path())?;
+        let mut map = map(folder.path())?;
         fs::create_dir_all(folder.path().join("topics/os/kernel"))?;
-        ask(&mut universe, "add_star", json!({ "name": "Top" }))?;
+        ask(&mut map, "add_domain", json!({ "name": "Top" }))?;
         let topics = folder.path().join("topics");
-        let args = json!({ "folder": topics, "larger": 1, "position": [10.0, 20.0] });
+        let args = json!({ "folder": topics, "parent": 1, "position": [10.0, 20.0] });
 
-        let snapshot = ask(&mut universe, "import", args)?;
+        let snapshot = ask(&mut map, "import", args)?;
 
-        let stars = snapshot["stars"].as_array().context("stars")?;
-        let names: Vec<_> = stars.iter().map(|star| &star["name"]).collect();
+        let domains = snapshot["domains"].as_array().context("domains")?;
+        let names: Vec<_> = domains.iter().map(|domain| &domain["name"]).collect();
         assert_eq!(names, ["Top", "topics", "os", "kernel"]);
         assert_eq!(snapshot["links"], json!([[1, 2], [2, 3], [3, 4]]));
-        assert_eq!((&stars[1]["x"], &stars[1]["y"]), (&json!(10.0), &json!(20.0)));
+        assert_eq!((&domains[1]["x"], &domains[1]["y"]), (&json!(10.0), &json!(20.0)));
 
-        let shallow = ask(&mut universe, "import", json!({ "folder": topics, "depth": 0 }))?;
-        assert_eq!(shallow["stars"].as_array().map(Vec::len), Some(5));
-        assert!(ask(&mut universe, "import", json!({ "folder": "/no/such" })).is_err());
+        let shallow = ask(&mut map, "import", json!({ "folder": topics, "depth": 0 }))?;
+        assert_eq!(shallow["domains"].as_array().map(Vec::len), Some(5));
+        assert!(ask(&mut map, "import", json!({ "folder": "/no/such" })).is_err());
         Ok(())
     }
 
     #[test]
-    fn a_started_session_sits_on_its_star_before_the_agent_stores_it() -> Result<()> {
+    fn a_started_session_joins_its_domain_before_the_agent_stores_it() -> Result<()> {
         let folder = tempfile::tempdir()?;
-        let mut universe = universe(folder.path())?;
-        let top = universe.add_star("Top", None)?;
+        let mut map = map(folder.path())?;
+        let top = map.add_domain("Top", None)?;
         let work = folder.path().to_str().context("folder name")?;
 
-        let (key, launch) = universe.plan_start(top, work)?;
-        universe.record_start(top, key.clone(), &launch.folder, PANE)?;
-        let snapshot = snapshot(&universe)?;
+        let (key, launch) = map.plan_start(top, work)?;
+        map.record_start(top, key.clone(), &launch.folder, PANE)?;
+        let snapshot = snapshot(&map)?;
 
         assert_eq!(launch.args, ["--session-id", key.id.as_str()]);
         let started = &snapshot["sessions"][0];
         assert_eq!((&started["id"], &started["title"]), (&json!(key.id), &json!("New session")));
-        assert_eq!(started["stars"], json!([1]));
-        assert_eq!(snapshot["stars"][0]["sessions"], json!([{ "agent": "claude", "id": key.id }]));
+        assert_eq!(started["domains"], json!([1]));
+        assert_eq!(
+            snapshot["domains"][0]["sessions"],
+            json!([{ "agent": "claude", "id": key.id }])
+        );
         assert_eq!(snapshot["missing"], json!([]));
         assert_eq!(snapshot["last_folder"], json!(folder::label(folder.path())));
-        assert!(universe.plan_start(StarId::new(9), work).is_err());
-        assert!(universe.plan_start(top, "/no/such/folder").is_err());
+        assert!(map.plan_start(DomainId::new(9), work).is_err());
+        assert!(map.plan_start(top, "/no/such/folder").is_err());
         Ok(())
     }
 
     #[test]
     fn a_started_session_stays_only_if_the_agent_stored_it() -> Result<()> {
         let folder = tempfile::tempdir()?;
-        let mut universe = universe(folder.path())?;
-        let top = universe.add_star("Top", None)?;
+        let mut map = map(folder.path())?;
+        let top = map.add_domain("Top", None)?;
         let work = folder.path().to_str().context("folder name")?;
-        let (used, launch) = universe.plan_start(top, work)?;
-        universe.record_start(top, used.clone(), &launch.folder, PaneId::new(1))?;
-        let (unused, launch) = universe.plan_start(top, work)?;
-        universe.record_start(top, unused.clone(), &launch.folder, PaneId::new(2))?;
+        let (used, launch) = map.plan_start(top, work)?;
+        map.record_start(top, used.clone(), &launch.folder, PaneId::new(1))?;
+        let (unused, launch) = map.plan_start(top, work)?;
+        map.record_start(top, unused.clone(), &launch.folder, PaneId::new(2))?;
         let line = json!({ "type": "ai-title", "aiTitle": "Used", "cwd": work });
         let transcript = folder.path().join(format!("projects/p/{}.jsonl", used.id));
         fs::write(transcript, line.to_string())?;
 
-        universe.settle(PaneId::new(1))?;
-        universe.settle(PaneId::new(2))?;
-        let snapshot = snapshot(&universe)?;
+        map.settle(PaneId::new(1))?;
+        map.settle(PaneId::new(2))?;
+        let snapshot = snapshot(&map)?;
 
         let sessions = snapshot["sessions"].as_array().context("sessions")?;
-        let placed: Vec<_> =
-            sessions.iter().filter(|session| session["stars"] == json!([1])).collect();
-        assert_eq!(placed.len(), 1);
-        assert_eq!((&placed[0]["id"], &placed[0]["title"]), (&json!(used.id), &json!("Used")));
+        let assigned: Vec<_> =
+            sessions.iter().filter(|session| session["domains"] == json!([1])).collect();
+        assert_eq!(assigned.len(), 1);
+        assert_eq!((&assigned[0]["id"], &assigned[0]["title"]), (&json!(used.id), &json!("Used")));
         assert!(sessions.iter().all(|session| session["id"] != json!(unused.id)));
         assert_eq!(snapshot["missing"], json!([]));
-        assert_eq!(snapshot["stars"][0]["sessions"].as_array().map(Vec::len), Some(1));
+        assert_eq!(snapshot["domains"][0]["sessions"].as_array().map(Vec::len), Some(1));
         Ok(())
     }
 
     #[test]
     fn a_refused_request_reports_why_and_changes_nothing() -> Result<()> {
         let folder = tempfile::tempdir()?;
-        let mut universe = universe(folder.path())?;
-        ask(&mut universe, "add_star", json!({ "name": "Top" }))?;
-        ask(&mut universe, "add_star", json!({ "name": "Small", "larger": 1 }))?;
+        let mut map = map(folder.path())?;
+        ask(&mut map, "add_domain", json!({ "name": "Top" }))?;
+        ask(&mut map, "add_domain", json!({ "name": "Small", "parent": 1 }))?;
 
-        let refused = ask(&mut universe, "link", json!({ "larger": 2, "smaller": 1 }));
+        let refused = ask(&mut map, "link", json!({ "parent": 2, "child": 1 }));
 
         assert!(refused.is_err_and(|error| error.to_string().contains("loop")));
-        assert_eq!(snapshot(&universe)?["links"], json!([[1, 2]]));
-        assert!(ask(&mut universe, "explode", json!({})).is_err());
+        assert_eq!(snapshot(&map)?["links"], json!([[1, 2]]));
+        assert!(ask(&mut map, "explode", json!({})).is_err());
         Ok(())
     }
 }

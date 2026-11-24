@@ -32,7 +32,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_last_folder_is_remembered_and_replaced() -> Result<()> {
+    fn the_last_folder_is_remembered_and_reassigned() -> Result<()> {
         let store = Store::in_memory()?;
         assert_eq!(store.last_folder()?, None);
 
