@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Local};
 use noema_deck_core::{DomainId, Snapshot, map::SessionView};
 
-/// Prints one line per session: last activity, ID, domains, folder and title.
+/// Prints one line per session: last activity, agent, ID, domains, folder and title.
 pub fn sessions<'a>(snapshot: &Snapshot, shown: impl IntoIterator<Item = &'a SessionView>) {
     let names = names(snapshot);
     let rows: Vec<_> = shown
@@ -18,14 +18,14 @@ pub fn sessions<'a>(snapshot: &Snapshot, shown: impl IntoIterator<Item = &'a Ses
             let domains = if domains.is_empty() { "-".into() } else { domains.join(", ") };
             let folder = session.folder.clone().unwrap_or_else(|| "-".into());
             let title: String = session.title.chars().take(80).collect();
-            [updated, session.key.id.clone(), domains, folder, title]
+            [updated, session.key.agent.to_string(), session.key.id.clone(), domains, folder, title]
         })
         .collect();
     let width =
         |column: usize| rows.iter().map(|row| row[column].chars().count()).max().unwrap_or(0);
-    let (domains, folder) = (width(2), width(3));
-    for [updated, id, on, at, title] in &rows {
-        println!("{updated}  {id}  {on:domains$}  {at:folder$}  {title}");
+    let (agent, domains, folder) = (width(1), width(3), width(4));
+    for [updated, by, id, on, at, title] in &rows {
+        println!("{updated}  {by:agent$}  {id}  {on:domains$}  {at:folder$}  {title}");
     }
 }
 

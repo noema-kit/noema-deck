@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     env,
     fs::{self, File},
-    io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
+    io::{BufRead, BufReader},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -16,7 +16,7 @@ use std::{
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 
-use super::{Agent, Launch};
+use super::{Agent, Launch, append, clean_title, entries, is_uuid};
 use crate::session::{Session, SessionKey};
 
 /// Claude Code's own folder: `$CLAUDE_CONFIG_DIR`, else `~/.claude`.
@@ -48,7 +48,7 @@ impl Listing {
     /// Claude Code has never run has no such folder and no sessions.
     pub fn sessions(&mut self, projects: &Path) -> Result<Vec<Session>> {
         let mut found = HashMap::new();
-        let projects = if projects.exists() { entries(projects)? } else { Vec::new() };
+        let projects = entries(projects)?;
         // Sub-agent transcripts sit in sub-folders, so one level is enough.
         for project in projects.iter().filter(|project| project.is_dir()) {
             for transcript in entries(project)? {
@@ -85,19 +85,11 @@ pub fn rename(transcript: &Path, id: &str, title: &str) -> Result<String> {
     let title = clean_title(title).context("Enter a name for the session")?;
     let record =
         serde_json::json!({ "type": "custom-title", "customTitle": title, "sessionId": id });
-    let unwritten = || format!("Write {}", transcript.display());
-    let mut file =
-        File::options().read(true).append(true).open(transcript).with_context(unwritten)?;
-    let modified = file.metadata()?.modified()?;
-    // A transcript cut off mid-line must not swallow the record.
-    let mut last = [b'\n'];
-    if file.metadata()?.len() > 0 {
-        file.seek(SeekFrom::End(-1))?;
-        file.read_exact(&mut last)?;
-    }
-    let lead = if last[0] == b'\n' { "" } else { "\n" };
-    file.write_all(format!("{lead}{record}\n").as_bytes()).with_context(unwritten)?;
-    file.set_modified(modified)?;
+    let modified = fs::metadata(transcript)
+        .and_then(|metadata| metadata.modified())
+        .with_context(|| format!("Read {}", transcript.display()))?;
+    append(transcript, &record)?;
+    File::options().write(true).open(transcript)?.set_modified(modified)?;
     Ok(title)
 }
 
@@ -119,13 +111,6 @@ pub fn start(id: &str, folder: &Path, name: Option<&str>) -> Result<Launch> {
         args.extend(["--name".into(), name]);
     }
     Ok(Launch { folder: folder.into(), program: program(), args })
-}
-
-/// A title on one line with single spaces, or `None` when nothing is left.
-#[must_use]
-pub fn clean_title(title: &str) -> Option<String> {
-    let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
-    (!title.is_empty()).then_some(title)
 }
 
 /// Fits `launch` to a pane, whose terminal is light or dark. A person whose
@@ -165,15 +150,7 @@ fn theme(settings: &Path) -> Option<String> {
 /// The Claude Code executable: `$NOEMA_DECK_CLAUDE` when set, else `claude`
 /// wherever the `PATH` finds it.
 fn program() -> String {
-    let named = env::var("NOEMA_DECK_CLAUDE").ok().filter(|program| !program.is_empty());
-    named.unwrap_or_else(|| "claude".into())
-}
-
-fn entries(dir: &Path) -> Result<Vec<PathBuf>> {
-    fs::read_dir(dir)
-        .with_context(|| format!("Read {}", dir.display()))?
-        .map(|entry| Ok(entry?.path()))
-        .collect()
+    super::program("NOEMA_DECK_CLAUDE", "claude")
 }
 
 /// The session ID of a transcript, which Claude Code names `<uuid>.jsonl`.
@@ -182,12 +159,7 @@ fn session_id(transcript: &Path) -> Option<&str> {
         return None;
     }
     let id = transcript.file_stem()?.to_str()?;
-    let is_uuid = id.len() == 36
-        && id.bytes().enumerate().all(|(index, byte)| match index {
-            8 | 13 | 18 | 23 => byte == b'-',
-            _ => byte.is_ascii_hexdigit(),
-        });
-    is_uuid.then_some(id)
+    is_uuid(id).then_some(id)
 }
 
 /// The transcript fields Deck reads. Each appears on only some record types.

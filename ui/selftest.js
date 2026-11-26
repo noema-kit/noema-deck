@@ -127,7 +127,7 @@ function key(name, more) {
 
 const steps = [
   ["the agent's history stays out of the session list", async () => {
-    await until("three sessions", () => state.snapshot.sessions.length === 3);
+    await until("four sessions", () => state.snapshot.sessions.length === 4);
     expect(!titles("list-body").length, `the list showed ${titles("list-body")}`);
   }],
   ["double-clicking empty space adds a root domain", async () => {
@@ -180,7 +180,12 @@ const steps = [
   ["sessions join a domain from the history, and its parents count them once", async () => {
     await clickDomain("Memory");
     $("add-existing").click();
-    await until("the history", () => titles("picker-list").length === 3);
+    await until("the history", () => titles("picker-list").length === 4);
+    const sign = (title) => row("picker-list", title).querySelector("svg.agent").classList;
+    expect(sign("Alpha").contains("claude") && sign("Delta").contains("codex"), "the history did not show each session's agent");
+    [...$("picker-agent").children].find((option) => option.textContent === "Codex").click();
+    expect(titles("picker-list").join() === "Delta", `Codex's sessions were ${titles("picker-list")}`);
+    $("picker-agent").firstChild.click();
     row("picker-list", "Alpha").click();
     row("picker-list", "Beta").click();
     $("picker").querySelector("form").requestSubmit();
@@ -345,6 +350,30 @@ const steps = [
     document.querySelector(".pane .close").click();
     await until("the session to leave", () => count("Memory") === 2 && titles("domain-sessions").length === 2);
     expect((await snapshot()).missing.length === 0, "it was left as a missing session");
+  }],
+  ["a new Codex session joins its domain, then takes the ID Codex chose", async () => {
+    const chosen = "01a20000-0000-7000-8000-00000000000a";
+    $("start-here").click();
+    await until("the folder box", () => !$("starter").hidden && $("starter-folder").value);
+    [...$("starter-agent").children].find((option) => option.textContent === "Codex").click();
+    $("starter-name").value = "Codex start";
+    $("starter").requestSubmit();
+    await until("Codex's first line", () => terminal().includes("fake codex"));
+    const pane = panes.at(-1);
+    expect(pane.node.querySelector("header svg.agent.codex"), "the pane did not show Codex's sign");
+    await until("the session in Memory", () => count("Memory") === 3);
+    // The window coming back reads the sessions again, as a timer also does.
+    window.dispatchEvent(new Event("focus"));
+    await until("the ID Codex chose", () => pane.key === `codex/${chosen}`);
+    const session = state.snapshot.sessions.find((item) => item.id === chosen);
+    expect(session?.title === "Codex start", `the session was called ${session?.title}`);
+    expect(state.snapshot.last_agent === "codex", "the agent chosen was not kept");
+    expect(leaf("Codex start")?.querySelector("svg.agent.codex"), "the list did not show Codex's sign");
+    // Stored by Codex, it stays in its domain when its pane closes.
+    pane.node.querySelector(".close").click();
+    await until("the pane to close", () => !panes.includes(pane));
+    await sleep(300);
+    expect(count("Memory") === 3, "the stored session left its domain");
   }],
   ["typing a folder in the name box imports its tree of domains", async () => {
     // The fixture sessions ran in the folder that also holds the fixture tree.

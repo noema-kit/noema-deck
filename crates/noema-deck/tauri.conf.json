@@ -34,7 +34,7 @@
       "dmg"
     ],
     "category": "DeveloperTool",
-    "shortDescription": "Organise Claude Code sessions by domain",
+    "shortDescription": "Organise Claude Code and Codex sessions by domain",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

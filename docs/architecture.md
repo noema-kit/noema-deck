@@ -12,7 +12,7 @@ flowchart LR
     APP --> CORE["noema-deck-core"]
     CLI --> CORE
     CORE --> S["SQLite store"]
-    CORE --> A["Claude Code transcripts and CLI"]
+    CORE --> A["Claude Code and Codex: session files and CLIs"]
     CORE --> T["Pseudoterminals"]
 ```
 
@@ -27,11 +27,11 @@ flowchart LR
 
 | Module | Holds |
 | --- | --- |
-| `agent`, `agent::claude` | The agents, and the Claude Code adapter: list sessions, and the commands that open or start one. |
+| `agent`, `agent::claude`, `agent::codex` | The agents, and one adapter each: list and rename sessions, and the commands that open or start one. |
 | `session`, `domain` | The records Deck works with. |
 | `store` | The SQLite file: tables and upgrades, domains, assignments, settings. |
 | `import` | A folder tree turned into domains laid out on rings. |
-| `map` | Domains, links and assignments joined with the agent's sessions. One `Request` goes in and one `Snapshot` comes out. `map::arrange` lays the domains out by depth around one centre. |
+| `map` | Domains, links and assignments joined with the agents' sessions. One `Request` goes in and one `Snapshot` comes out. `map::arrange` lays the domains out by depth around one centre. |
 | `pane` | Terminal panes on pseudoterminals. |
 | `fonts` | The installed typefaces, read once: which share one width, and which draw prompt icons. |
 | `deck` | One running Deck: the map behind a lock, and the panes. |
@@ -82,7 +82,7 @@ One SQLite file in the per-user application data directory. Nothing from a sessi
 
 ## Panes
 
-A pane runs one command on a pseudoterminal: Claude Code on a session, or the user's login shell.
+A pane runs one command on a pseudoterminal: an agent on a session, or the user's login shell.
 
 - **Two threads per pane.** One copies what the process writes. The other waits for the process to end.
 - **Ending.** A pane ends when its terminal closes, or shortly after its process exits if something it started holds the terminal open.
@@ -109,3 +109,17 @@ A pane runs one command on a pseudoterminal: Claude Code on a session, or the us
 | Theme | In a pane, `--settings` swaps Claude Code's theme for its light or dark counterpart to match the pane, for that run only |
 
 Read from Claude Code 2.1.330 on macOS. The transcript format is undocumented, so Deck reads only these fields, and reads a transcript again only when its time or length has changed.
+
+## Codex
+
+| Action | Interface |
+| --- | --- |
+| List | Rollout files, `~/.codex/sessions/<year>/<month>/<day>/rollout-<time>-<id>.jsonl`, or `.jsonl.zst` once Codex has compressed them. Only sessions from the terminal, editor and desktop apps, as `codex resume` lists them, not sub-agents or non-interactive runs |
+| Title | Last name for the session in `~/.codex/session_index.jsonl`, else the first prompt typed. A session with neither is empty and left out |
+| Rename | Append a name to `session_index.jsonl`, where `codex resume` also finds sessions by name |
+| Folder | `cwd` of the first record, `session_meta` |
+| Last activity | File modification time |
+| Open | `codex resume <id>` in the session's folder |
+| Start | `codex` in the folder. Codex chooses the ID, so Deck holds the session under a stand-in key and takes Codex's ID once Codex lists a new session in that folder, moving its domains and its kept pane along. A name given is written once Codex has stored it |
+
+Read from Codex 0.171.0 on macOS. `CODEX_HOME` moves the folder, as it does for Codex.

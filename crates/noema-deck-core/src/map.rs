@@ -6,11 +6,13 @@ mod request;
 mod snapshot;
 
 use std::{
+    collections::HashSet,
+    fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use uuid::Uuid;
 
 pub use self::{
@@ -18,7 +20,7 @@ pub use self::{
     snapshot::{DomainView, MissingSession, SessionView, Snapshot},
 };
 use crate::{
-    agent::{Agent, Launch, claude},
+    agent::{self, Agent, Homes, Launch, claude, codex},
     domain::DomainId,
     folder, import,
     pane::PaneId,
@@ -28,14 +30,17 @@ use crate::{
 
 pub struct Map {
     store: Store,
-    projects: PathBuf,
-    listing: claude::Listing,
-    /// The sessions Deck started that the agent has not stored yet, then every
-    /// session the agent lists.
+    homes: Homes,
+    listing: agent::Listing,
+    /// The sessions Deck started that their agent has not stored yet, then
+    /// every session the agents list.
     sessions: Vec<Session>,
-    /// Sessions Deck started that the agent has not stored yet. Claude Code
+    /// Sessions Deck started that their agent has not stored yet. Claude Code
     /// stores a session at its first prompt.
     started: Vec<Started>,
+    /// Keys Deck gave sessions before their agent chose their IDs, each with
+    /// the key it became, so the interface can follow.
+    replaced: Vec<(SessionKey, SessionKey)>,
 }
 
 struct Started {
@@ -44,31 +49,47 @@ struct Started {
     key: SessionKey,
     /// The name it was given, written to the session once the agent stores it.
     name: Option<String>,
+    /// How to recognise it, for an agent that chooses the ID itself.
+    unknown: Option<Unknown>,
+}
+
+/// A session whose agent chooses its ID: it is the first one the agent lists
+/// in its folder that was not listed before it started.
+struct Unknown {
+    folder: PathBuf,
+    listed: HashSet<String>,
+}
+
+/// A session about to start: its key, and the command that starts it.
+pub struct Plan {
+    pub key: SessionKey,
+    pub launch: Launch,
+    unknown: Option<Unknown>,
 }
 
 impl Map {
-    /// Opens the store at `store` and reads Claude Code's sessions from
-    /// `projects`.
-    pub fn open(store: &Path, projects: PathBuf) -> Result<Self> {
+    /// Opens the store at `store` and reads the agents' sessions from `homes`.
+    pub fn open(store: &Path, homes: Homes) -> Result<Self> {
         let mut map = Self {
             store: Store::open(store)?,
-            projects,
-            listing: claude::Listing::default(),
+            homes,
+            listing: agent::Listing::default(),
             sessions: Vec::new(),
             started: Vec::new(),
+            replaced: Vec::new(),
         };
         map.refresh()?;
         Ok(map)
     }
 
-    /// Opens the store at `store`, or the per-user one, beside Claude Code's
-    /// own sessions.
+    /// Opens the store at `store`, or the per-user one, beside the agents' own
+    /// sessions.
     pub fn at(store: Option<&Path>) -> Result<Self> {
         let store = match store {
             Some(store) => store.to_owned(),
             None => store::default_path()?,
         };
-        Self::open(&store, claude::projects_dir()?)
+        Self::open(&store, Homes::find()?)
     }
 
     /// Carries out a request and answers with the map as it then stands.
@@ -108,7 +129,7 @@ impl Map {
     }
 
     pub fn snapshot(&self) -> Result<Snapshot> {
-        Snapshot::of(&self.store, &self.sessions)
+        Snapshot::of(&self.store, &self.sessions, &self.replaced)
     }
 
     /// A session known at the last refresh.
@@ -139,19 +160,37 @@ impl Map {
         Ok(self.store.add_domains(&seeds, parent)?.len())
     }
 
-    /// Chooses the ID of a new session on `domain` and the command that starts
-    /// it in `folder`, under `name` if one is given. Nothing is recorded until
-    /// the command is running.
+    /// Plans a new session with `agent` on `domain`, in `folder` and under
+    /// `name` if one is given. Nothing is recorded until it is running.
     pub fn plan_start(
-        &self,
+        &mut self,
         domain: DomainId,
+        agent: Agent,
         folder: &str,
         name: Option<&str>,
-    ) -> Result<(SessionKey, Launch)> {
+    ) -> Result<Plan> {
         self.store.require(domain)?;
-        let key = SessionKey { agent: Agent::Claude, id: Uuid::new_v4().to_string() };
-        let launch = claude::start(&key.id, &folder::from_label(folder), name)?;
-        Ok((key, launch))
+        let folder = folder::from_label(folder);
+        let id = Uuid::new_v4().to_string();
+        match agent {
+            Agent::Claude => {
+                let launch = claude::start(&id, &folder, name)?;
+                Ok(Plan { key: SessionKey { agent, id }, launch, unknown: None })
+            }
+            Agent::Codex => {
+                let launch = codex::start(&folder)?;
+                self.refresh()?;
+                let listed = self.sessions.iter().filter(|session| session.key.agent == agent);
+                let unknown = Unknown {
+                    // Codex records the folder with its links resolved.
+                    folder: fs::canonicalize(&folder).unwrap_or(folder),
+                    listed: listed.map(|session| session.key.id.clone()).collect(),
+                };
+                // A stand-in until Codex has chosen the ID.
+                let key = SessionKey { agent, id: format!("new-{id}") };
+                Ok(Plan { key, launch, unknown: Some(unknown) })
+            }
+        }
     }
 
     /// Assigns the session now running in `pane` to `domain`, so it shows there
@@ -159,23 +198,24 @@ impl Map {
     pub fn record_start(
         &mut self,
         domain: DomainId,
-        key: SessionKey,
-        folder: &Path,
+        plan: Plan,
         pane: PaneId,
         name: Option<&str>,
     ) -> Result<()> {
+        let Plan { key, launch, unknown } = plan;
         self.store.assign(domain, &key)?;
-        self.store.set_last_folder(folder)?;
+        self.store.set_last_folder(&launch.folder)?;
+        self.store.set_last_agent(key.agent)?;
         let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |now| now.as_secs());
-        let name = name.and_then(claude::clean_title);
+        let name = name.and_then(agent::clean_title);
         let session = Session {
             key: key.clone(),
             title: name.clone().unwrap_or_else(|| "New session".into()),
-            folder: Some(folder.into()),
+            folder: Some(launch.folder),
             updated: i64::try_from(now).unwrap_or(0),
         };
         self.sessions.insert(0, session);
-        self.started.push(Started { pane, key, name });
+        self.started.push(Started { pane, key, name, unknown });
         Ok(())
     }
 
@@ -191,38 +231,33 @@ impl Map {
         self.store.forget_session(&key)
     }
 
-    /// Names a session in its transcript, where Claude Code reads it too. A
-    /// session not stored yet keeps the name until it is.
+    /// Names a session where its agent keeps names, so the agent shows it too.
+    /// A session not stored yet keeps the name until it is.
     fn rename_session(&mut self, key: &SessionKey, title: &str) -> Result<()> {
         if let Some(started) = self.started.iter_mut().find(|started| &started.key == key) {
-            let name = claude::clean_title(title).context("Enter a name for the session")?;
+            let name = agent::clean_title(title).context("Enter a name for the session")?;
             for session in self.sessions.iter_mut().filter(|session| &session.key == key) {
                 session.title.clone_from(&name);
             }
             started.name = Some(name);
             return Ok(());
         }
-        let transcript = self
-            .listing
-            .transcript(&key.id)
-            .context("That session is no longer listed")?
-            .to_owned();
-        claude::rename(&transcript, &key.id, title)?;
+        ensure!(self.session(key).is_some(), "That session is no longer listed");
+        self.listing.rename(&self.homes, key, title)?;
         self.refresh()
     }
 
     fn refresh(&mut self) -> Result<()> {
-        let mut listed = self.listing.sessions(&self.projects)?;
+        let mut listed = self.listing.sessions(&self.homes)?;
+        self.recognise(&listed)?;
         // A named session the agent has just stored takes its name now.
         for started in &self.started {
             let Some(name) = &started.name else { continue };
             let Some(session) = listed.iter_mut().find(|session| session.key == started.key) else {
                 continue;
             };
-            if let Some(transcript) = self.listing.transcript(&session.key.id)
-                && &session.title != name
-            {
-                session.title = claude::rename(transcript, &session.key.id, name)?;
+            if &session.title != name {
+                session.title = self.listing.rename(&self.homes, &session.key, name)?;
             }
         }
         self.started.retain(|started| !listed.iter().any(|session| session.key == started.key));
@@ -230,6 +265,29 @@ impl Map {
             |session: &Session| self.started.iter().any(|started| started.key == session.key);
         self.sessions.retain(waiting);
         self.sessions.extend(listed);
+        Ok(())
+    }
+
+    /// Gives each started session whose agent chose its ID that ID, once the
+    /// agent lists it.
+    fn recognise(&mut self, listed: &[Session]) -> Result<()> {
+        for index in 0..self.started.len() {
+            let Some(unknown) = &self.started[index].unknown else { continue };
+            let agent = self.started[index].key.agent;
+            let taken = |key: &SessionKey| self.started.iter().any(|started| &started.key == key);
+            let found = listed.iter().find(|session| {
+                session.key.agent == agent
+                    && !unknown.listed.contains(&session.key.id)
+                    && session.folder.as_deref() == Some(unknown.folder.as_path())
+                    && !taken(&session.key)
+            });
+            let Some(found) = found else { continue };
+            let started = &mut self.started[index];
+            self.store.rekey(&started.key, &found.key)?;
+            self.replaced.push((started.key.clone(), found.key.clone()));
+            started.key = found.key.clone();
+            started.unknown = None;
+        }
         Ok(())
     }
 }
@@ -254,7 +312,8 @@ mod tests {
             let line = json!({ "type": "ai-title", "aiTitle": title, "cwd": "/work" });
             fs::write(project.join(format!("{id}.jsonl")), line.to_string())?;
         }
-        Map::open(&folder.join("deck.db"), folder.join("projects"))
+        let homes = Homes { claude: folder.join("projects"), codex: folder.join("codex") };
+        Map::open(&folder.join("deck.db"), homes)
     }
 
     /// Sends a request as the interface would and reads the answer the same way.
@@ -363,11 +422,12 @@ mod tests {
         let top = map.add_domain("Top", None)?;
         let work = folder.path().to_str().context("folder name")?;
 
-        let (key, launch) = map.plan_start(top, work, None)?;
-        map.record_start(top, key.clone(), &launch.folder, PANE, None)?;
+        let plan = map.plan_start(top, Agent::Claude, work, None)?;
+        let (key, args) = (plan.key.clone(), plan.launch.args.clone());
+        map.record_start(top, plan, PANE, None)?;
         let snapshot = snapshot(&map)?;
 
-        assert_eq!(launch.args, ["--session-id", key.id.as_str()]);
+        assert_eq!(args, ["--session-id", key.id.as_str()]);
         let started = &snapshot["sessions"][0];
         assert_eq!((&started["id"], &started["title"]), (&json!(key.id), &json!("New session")));
         assert_eq!(started["domains"], json!([1]));
@@ -377,8 +437,9 @@ mod tests {
         );
         assert_eq!(snapshot["missing"], json!([]));
         assert_eq!(snapshot["last_folder"], json!(folder::label(folder.path())));
-        assert!(map.plan_start(DomainId::new(9), work, None).is_err());
-        assert!(map.plan_start(top, "/no/such/folder", None).is_err());
+        assert_eq!(snapshot["last_agent"], "claude");
+        assert!(map.plan_start(DomainId::new(9), Agent::Claude, work, None).is_err());
+        assert!(map.plan_start(top, Agent::Claude, "/no/such/folder", None).is_err());
         Ok(())
     }
 
@@ -388,10 +449,12 @@ mod tests {
         let mut map = map(folder.path())?;
         let top = map.add_domain("Top", None)?;
         let work = folder.path().to_str().context("folder name")?;
-        let (used, launch) = map.plan_start(top, work, None)?;
-        map.record_start(top, used.clone(), &launch.folder, PaneId::new(1), None)?;
-        let (unused, launch) = map.plan_start(top, work, None)?;
-        map.record_start(top, unused.clone(), &launch.folder, PaneId::new(2), None)?;
+        let plan = map.plan_start(top, Agent::Claude, work, None)?;
+        let used = plan.key.clone();
+        map.record_start(top, plan, PaneId::new(1), None)?;
+        let plan = map.plan_start(top, Agent::Claude, work, None)?;
+        let unused = plan.key.clone();
+        map.record_start(top, plan, PaneId::new(2), None)?;
         let line = json!({ "type": "ai-title", "aiTitle": "Used", "cwd": work });
         let transcript = folder.path().join(format!("projects/p/{}.jsonl", used.id));
         fs::write(transcript, line.to_string())?;
@@ -425,8 +488,9 @@ mod tests {
         assert_eq!(named["title"], "Named");
         let top = map.add_domain("Top", None)?;
         let work = folder.path().to_str().context("folder name")?;
-        let (unstored, launch) = map.plan_start(top, work, None)?;
-        map.record_start(top, unstored.clone(), &launch.folder, PANE, None)?;
+        let plan = map.plan_start(top, Agent::Claude, work, None)?;
+        let unstored = plan.key.clone();
+        map.record_start(top, plan, PANE, None)?;
         let args = json!({ "session": unstored, "title": "Before its prompt" });
         let snapshot = ask(&mut map, "rename_session", args)?;
         assert_eq!(snapshot["sessions"][0]["title"], "Before its prompt");
@@ -445,6 +509,54 @@ mod tests {
         assert_eq!(stored["title"], "Before its prompt");
         assert!(fs::read_to_string(transcript)?.contains("custom-title"));
 
+        Ok(())
+    }
+
+    #[test]
+    fn a_codex_session_takes_the_id_codex_chose_once_listed() -> Result<()> {
+        const EARLIER: &str = "01a1fcb0-7894-7840-8ee2-fbb77112253b";
+        const CHOSEN: &str = "01a2168a-b66b-7a93-9f0c-0994edc8ba9b";
+        const ELSEWHERE: &str = "01a2167c-bd4a-7d50-ac32-77a78ca5647d";
+        let folder = tempfile::tempdir()?;
+        let mut map = map(folder.path())?;
+        let top = map.add_domain("Top", None)?;
+        let work = fs::canonicalize(folder.path())?;
+        let rollout = |id: &str, cwd: &Path| -> Result<()> {
+            let day = folder.path().join("codex/sessions/2026/11/26");
+            fs::create_dir_all(&day)?;
+            let meta = json!({ "type": "session_meta", "payload": { "id": id, "cwd": cwd, "source": "cli" } });
+            let prompt = json!({ "type": "response_item", "payload": {
+                "type": "message", "role": "user", "content": [{ "text": "Hello" }],
+            } });
+            fs::write(
+                day.join(format!("rollout-2026-11-26T10-00-00-{id}.jsonl")),
+                format!("{meta}\n{prompt}\n"),
+            )?;
+            Ok(())
+        };
+        rollout(EARLIER, &work)?;
+
+        let plan = map.plan_start(
+            top,
+            Agent::Codex,
+            work.to_str().context("folder name")?,
+            Some("Named"),
+        )?;
+        let given = plan.key.clone();
+        assert!(plan.launch.args.is_empty() && given.id.starts_with("new-"));
+        map.record_start(top, plan, PANE, Some("Named"))?;
+        rollout(ELSEWHERE, Path::new("/elsewhere"))?;
+        rollout(CHOSEN, &work)?;
+        let snapshot = ask(&mut map, "refresh", Value::Null)?;
+
+        let chosen = json!({ "agent": "codex", "id": CHOSEN });
+        assert_eq!(snapshot["replaced"], json!([[given, chosen]]));
+        assert_eq!(snapshot["domains"][0]["sessions"], json!([chosen]));
+        let sessions = snapshot["sessions"].as_array().context("sessions")?;
+        let named = sessions.iter().find(|session| session["id"] == CHOSEN).context("chosen")?;
+        assert_eq!(named["title"], "Named");
+        assert!(sessions.iter().all(|session| session["id"] != json!(given.id)));
+        assert_eq!(snapshot["last_agent"], "codex");
         Ok(())
     }
 

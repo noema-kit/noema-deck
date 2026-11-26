@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::PaneId;
-use crate::{domain::DomainId, session::SessionKey};
+use crate::{agent::Agent, domain::DomainId, session::SessionKey};
 
 /// A request about a pane.
 #[derive(Debug, Deserialize)]
@@ -22,6 +22,9 @@ pub enum Request {
     /// ID and the session's key.
     Start {
         domain: DomainId,
+        /// The agent to run. Claude Code unless given.
+        #[serde(default)]
+        agent: Agent,
         folder: String,
         /// A name for the session. Optional.
         name: Option<String>,

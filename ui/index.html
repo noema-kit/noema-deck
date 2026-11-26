@@ -48,7 +48,7 @@
         <svg viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg><span>New session</span>
       </button>
       <button id="new-shell" class="row" type="button">
-        <svg viewBox="0 0 16 16"><path d="M3.5 5l3 3-3 3M8.5 11.5h4"/></svg><span>New shell</span>
+        <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6.5l1.8 1.5L5 9.5M8.5 10h2.5"/></svg><span>New shell</span>
       </button>
       <label class="row search">
         <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2l3.3 3.3"/></svg>
@@ -105,6 +105,7 @@
   </aside>
 
   <form id="starter" hidden>
+    <div id="starter-agent" class="segmented" role="group" aria-label="Agent for the new session"></div>
     <select id="starter-domain" aria-label="Domain for the new session"></select>
     <input id="starter-name" placeholder="Name (optional)" aria-label="Name for the new session" autocomplete="off" spellcheck="false">
     <input id="starter-folder" list="folders" placeholder="Folder, such as ~/project" aria-label="Folder for the new session" autocomplete="off" spellcheck="false">
@@ -116,6 +117,7 @@
     <form class="sheet">
       <h2 id="picker-title"></h2>
       <input id="picker-search" type="search" placeholder="Search by title or folder" aria-label="Search session history">
+      <div id="picker-agent" class="segmented" role="group" aria-label="Agent"></div>
       <ul id="picker-list" class="sessions"></ul>
       <footer class="actions">
         <span id="picker-note" class="note"></span>

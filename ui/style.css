@@ -170,7 +170,7 @@ h3 { margin: 12px 14px 4px; color: var(--muted); font: 500 11.5px/1 var(--font-u
 
 #list h3 button:hover, #close-panel:hover, #close-settings:hover, .pane header button:hover, .node .tools button:hover { background: var(--raised); color: var(--ink); }
 .pane header .close:hover, .node .tools .close:hover { color: var(--danger); }
-button svg, .row svg, .node svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+button svg, .row svg, .node svg, svg.agent { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 
 /* Edges to drag: the session list's, the domain panel's, and those between panes. */
 #list-edge, #panel-edge, .divider { z-index: 1; flex: none; cursor: col-resize; touch-action: none; }
@@ -291,9 +291,10 @@ input:not([type="checkbox"]):focus-visible, select:focus-visible { outline: none
 .node.leaf .title { color: color-mix(in srgb, var(--ink) 78%, var(--muted)); font-size: 13px; }
 .node.leaf.current .title, .node.leaf:hover .title { color: var(--ink); }
 .node.leaf .kind svg { width: 13px; height: 13px; opacity: 0.8; }
-/* A running session shows its state where the chat mark was. */
+/* A running session shows its state in the corner of its agent's sign. */
+.node .kind { position: relative; }
+.node .kind .dot { position: absolute; right: -2px; bottom: 0; width: 7px; height: 7px; box-shadow: 0 0 0 1.5px var(--canvas); }
 .node .kind .dot.idle { display: none; }
-.node .kind:has(.dot:not(.idle)) svg { display: none; }
 .node.more { color: var(--muted); font-size: 12px; }
 /* A domain a carried session would join. */
 .node.target { background: var(--accent-wash); box-shadow: inset 0 0 0 1px var(--accent-line); }
@@ -353,7 +354,7 @@ input.rename { height: 24px; padding: 0 6px; font: inherit; }
 .actions { display: flex; align-items: center; gap: 6px; margin: 14px 16px 0; }
 footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line); }
 
-.actions button, #starter button {
+.actions button, #starter > button {
   height: 30px;
   padding: 0 10px;
   font-size: 13px;
@@ -364,8 +365,8 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 }
 
 .actions button:hover { border-color: var(--accent-line); background: var(--raised); }
-.actions .primary, #starter button { border-color: var(--primary-line); background: var(--primary-fill); color: var(--primary-ink); font-weight: 600; }
-.actions .primary:hover, #starter button:hover { filter: brightness(1.08); }
+.actions .primary, #starter > button { border-color: var(--primary-line); background: var(--primary-fill); color: var(--primary-ink); font-weight: 600; }
+.actions .primary:hover, #starter > button:hover { filter: brightness(1.08); }
 .actions .primary:disabled { opacity: 0.4; cursor: default; }
 .actions .danger { margin-left: auto; color: var(--danger); }
 .actions .danger:hover { border-color: var(--danger); background: var(--danger-wash); }
@@ -397,6 +398,7 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 .session .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .session .folder, .session .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .session .folder { overflow: hidden; text-overflow: ellipsis; }
+.session .folder svg.agent { width: 12px; height: 12px; margin-right: 6px; vertical-align: -2px; stroke-width: 1.5; }
 .session .chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .session .tools { display: flex; gap: 2px; }
 
@@ -454,12 +456,17 @@ body:not(.listed) .pane.corner header { padding-left: calc(var(--lights) + 108px
 }
 
 #starter { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 10px; }
-#starter select, #starter-name { grid-column: 1 / -1; }
+#starter select, #starter-name, #starter-agent { grid-column: 1 / -1; }
+#starter-agent { display: flex; }
+#starter-agent button, #picker-agent button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+#starter-agent button { flex: 1; height: 28px; padding: 0 10px; }
 
 #picker, #settings { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: var(--scrim); }
 .sheet { display: flex; flex-direction: column; width: min(560px, 90vw); height: min(620px, 80vh); }
 #picker h2 { flex: none; padding: 16px 16px 10px; }
 #picker input { width: auto; margin: 0 16px 10px; }
+#picker-agent { align-self: flex-start; margin: 0 16px 12px; }
+#picker-agent button { height: 26px; padding: 0 12px; }
 #picker .note { flex: 1; margin: 0; }
 
 /* Settings: sections on the left, the chosen one on the right, each choice a
@@ -541,6 +548,15 @@ kbd { display: inline-block; min-width: 28px; padding: 3px 8px; border: 1px soli
 .segmented button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.14); }
 /* A theme with one mode keeps to it, and the choice waits for another theme. */
 .segmented.fixed { opacity: 0.5; }
+
+/* Each agent's logo, filled: Claude's in its clay, OpenAI's in ink. A shell's
+   window is drawn in lines. */
+svg.agent.logo, .node .kind svg.agent.logo { fill: currentColor; stroke: none; opacity: 1; }
+svg.agent.claude { color: #d97757; }
+svg.agent.codex { color: var(--ink); }
+svg.agent.shell { color: var(--muted); }
+.segmented svg.agent { width: 13px; height: 13px; stroke-width: 1.5; }
+.pane header svg.agent { flex: none; width: 14px; height: 14px; margin-right: 8px; stroke-width: 1.4; }
 
 /* A font menu: the choice on a button, and the options in a list below it. */
 .font-choice {

@@ -7,8 +7,7 @@ use anyhow::{Context, Result};
 use parking_lot::Mutex;
 
 use crate::{
-    agent::claude,
-    folder,
+    agent, folder,
     map::{self, Map, Snapshot},
     pane::{self, Panes, login_environment},
 };
@@ -22,8 +21,8 @@ pub struct Deck {
 }
 
 impl Deck {
-    /// Opens the store at `store`, or the per-user one, beside Claude Code's
-    /// own sessions.
+    /// Opens the store at `store`, or the per-user one, beside the agents' own
+    /// sessions.
     pub fn open(store: Option<&Path>) -> Result<Self> {
         // Asking the login shell for its environment can take a second, so it
         // is asked now and not when the first pane opens.
@@ -48,21 +47,17 @@ impl Deck {
                     let map = self.map.lock();
                     let session =
                         map.session(&session).context("That session is no longer listed")?;
-                    claude::for_pane(claude::open(session)?, light)
+                    agent::for_pane(session.key.agent, agent::open(session)?, light)
                 };
                 reply.pane = Some(self.panes.open(&launch, login_environment(), rows, cols)?);
             }
-            pane::Request::Start { domain, folder, name, rows, cols, light } => {
-                let (key, launch) = self.map.lock().plan_start(domain, &folder, name.as_deref())?;
-                let launch = claude::for_pane(launch, light);
-                let pane = self.panes.open(&launch, login_environment(), rows, cols)?;
-                let recorded = self.map.lock().record_start(
-                    domain,
-                    key.clone(),
-                    &launch.folder,
-                    pane,
-                    name.as_deref(),
-                );
+            pane::Request::Start { domain, agent, folder, name, rows, cols, light } => {
+                let mut plan =
+                    self.map.lock().plan_start(domain, agent, &folder, name.as_deref())?;
+                plan.launch = agent::for_pane(agent, plan.launch, light);
+                let pane = self.panes.open(&plan.launch, login_environment(), rows, cols)?;
+                let key = plan.key.clone();
+                let recorded = self.map.lock().record_start(domain, plan, pane, name.as_deref());
                 if recorded.is_err() {
                     self.panes.close(pane);
                 }

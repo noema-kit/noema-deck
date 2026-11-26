@@ -6,6 +6,7 @@ use anyhow::Result;
 use serde::Serialize;
 
 use crate::{
+    agent::Agent,
     domain::DomainId,
     folder,
     session::{Session, SessionKey},
@@ -18,13 +19,18 @@ pub struct Snapshot {
     pub domains: Vec<DomainView>,
     /// Every link as `[parent, child]`.
     pub links: Vec<(DomainId, DomainId)>,
-    /// Every session the agent lists, most recent first. One with no domains is
+    /// Every session the agents list, most recent first. One with no domains is
     /// unassigned.
     pub sessions: Vec<SessionView>,
     /// Assigned sessions the agent no longer lists.
     pub missing: Vec<MissingSession>,
     /// The folder the last new session was started in.
     pub last_folder: Option<String>,
+    /// The agent the last new session was started with.
+    pub last_agent: Agent,
+    /// Keys given to new sessions before their agent chose an ID, each as
+    /// `[given, chosen]`.
+    pub replaced: Vec<(SessionKey, SessionKey)>,
     /// The panes open when Deck last stopped.
     pub panes: OpenPanes,
     pub appearance: Appearance,
@@ -64,7 +70,11 @@ pub struct MissingSession {
 
 impl Snapshot {
     /// Joins what the store holds with the sessions the agent listed.
-    pub(super) fn of(store: &Store, listed: &[Session]) -> Result<Self> {
+    pub(super) fn of(
+        store: &Store,
+        listed: &[Session],
+        replaced: &[(SessionKey, SessionKey)],
+    ) -> Result<Self> {
         let updated: HashMap<_, _> =
             listed.iter().map(|session| (&session.key, session.updated)).collect();
         let domains = store
@@ -103,6 +113,8 @@ impl Snapshot {
             sessions,
             missing,
             last_folder: store.last_folder()?.as_deref().map(folder::label),
+            last_agent: store.last_agent()?,
+            replaced: replaced.to_vec(),
             panes: store.open_panes()?,
             appearance: store.appearance()?,
             shortcuts: store.shortcuts()?,

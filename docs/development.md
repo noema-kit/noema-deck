@@ -2,7 +2,7 @@
 
 ## Run
 
-Requires Rust 1.95, which `rust-toolchain.toml` selects, and Claude Code sessions on this machine.
+Requires Rust 1.95, which `rust-toolchain.toml` selects, and Claude Code or Codex sessions on this machine.
 
 ```sh
 cargo run -p noema-deck         # the desktop window
@@ -17,6 +17,8 @@ Plain `cargo` commands leave the window out, because it pulls in a web view. Nam
 | `NOEMA_DECK_STORE` | The store file, in place of the per-user one. `--store` does the same. |
 | `NOEMA_DECK_CLAUDE` | The Claude Code executable, when it is not `claude` on the `PATH`. |
 | `CLAUDE_CONFIG_DIR` | Where Claude Code keeps its sessions, as Claude Code itself reads it. |
+| `NOEMA_DECK_CODEX` | The Codex executable, when it is not `codex` on the `PATH`. |
+| `CODEX_HOME` | Where Codex keeps its sessions, as Codex itself reads it. |
 
 ## Check
 
@@ -27,7 +29,7 @@ cargo test --workspace
 scripts/selftest.sh
 ```
 
-The self-test opens the real window and drives the map, the session list, terminal panes, a new session, an import, Settings and shortcuts from inside the page. It uses a fixture store, fixture sessions and a stand-in for Claude Code, so it reads and changes nothing of yours.
+The self-test opens the real window and drives the map, the session list, terminal panes, a new session, an import, Settings and shortcuts from inside the page. It uses a fixture store, fixture sessions and stand-ins for Claude Code and Codex, so it reads and changes nothing of yours.
 
 ## Release
 

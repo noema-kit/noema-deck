@@ -4,8 +4,7 @@ use std::{os::unix::process::CommandExt, process};
 
 use anyhow::{Context, Result};
 use noema_deck_core::{
-    Map,
-    agent::claude,
+    Map, agent,
     map::{Request, SessionView},
 };
 
@@ -31,12 +30,12 @@ pub fn list(map: &Map, unassigned: bool, query: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-/// Replaces this process with Claude Code, resuming the session in its folder.
+/// Replaces this process with the session's agent, resuming it in its folder.
 pub fn open(map: &Map, session: &str) -> Result<()> {
     let snapshot = map.snapshot()?;
     let key = find::session(snapshot.sessions.iter().map(|session| &session.key), session)?;
     let session = map.session(&key).context("That session is no longer listed")?;
-    let launch = claude::open(session)?;
+    let launch = agent::open(session)?;
     let failure = process::Command::new(&launch.program)
         .args(&launch.args)
         .current_dir(&launch.folder)

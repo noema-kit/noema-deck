@@ -3,7 +3,7 @@
 use anyhow::{Result, ensure};
 use rusqlite::Row;
 
-use super::Store;
+use super::{OpenPane, Store};
 use crate::{domain::DomainId, session::SessionKey};
 
 impl Store {
@@ -32,6 +32,25 @@ impl Store {
             (session.agent.name(), &session.id),
         )?;
         Ok(())
+    }
+
+    /// Moves a session's assignments, and the pane it is kept open in, to the
+    /// ID its agent gave it.
+    pub fn rekey(&self, from: &SessionKey, to: &SessionKey) -> Result<()> {
+        self.connection.execute(
+            "UPDATE OR IGNORE assignment SET agent = ?3, session = ?4 WHERE agent = ?1 AND session = ?2",
+            (from.agent.name(), &from.id, to.agent.name(), &to.id),
+        )?;
+        self.forget_session(from)?;
+        let mut panes = self.open_panes()?;
+        for pane in &mut panes.open {
+            if let OpenPane::Session { session } = pane
+                && session == from
+            {
+                session.clone_from(to);
+            }
+        }
+        self.set_open_panes(panes)
     }
 
     /// Every assignment as `(domain, session)`. A session absent from all of them
@@ -78,7 +97,7 @@ fn session_key(row: &Row<'_>) -> Result<SessionKey> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::Agent;
+    use crate::{agent::Agent, store::OpenPanes};
 
     fn session(id: &str) -> SessionKey {
         SessionKey { agent: Agent::Claude, id: id.into() }
@@ -123,6 +142,26 @@ mod tests {
         store.forget_session(&session("gone"))?;
 
         assert_eq!(store.assignments()?, [(second, session("kept"))]);
+        Ok(())
+    }
+
+    #[test]
+    fn rekeying_moves_every_assignment_to_the_new_id() -> Result<()> {
+        let mut store = Store::in_memory()?;
+        let first = store.add_domain("First", None, None)?;
+        let second = store.add_domain("Second", None, None)?;
+        let stored = SessionKey { agent: Agent::Codex, id: "stored".into() };
+        store.assign(first, &session("new"))?;
+        store.assign(second, &session("new"))?;
+        store.assign(second, &stored)?;
+
+        let open = |session| OpenPanes { open: vec![OpenPane::Session { session }], layout: None };
+        store.set_open_panes(open(session("new")))?;
+
+        store.rekey(&session("new"), &stored)?;
+
+        assert_eq!(store.assignments()?, [(first, stored.clone()), (second, stored.clone())]);
+        assert_eq!(store.open_panes()?, open(stored));
         Ok(())
     }
 }

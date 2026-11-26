@@ -10,7 +10,7 @@ use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
 use super::Store;
-use crate::session::SessionKey;
+use crate::{agent::Agent, session::SessionKey};
 
 /// The panes open when Deck last stopped, so the next run can open them again.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -180,6 +180,15 @@ impl Store {
         self.set_setting("last_folder", folder.to_str().context("The folder's name is not text")?)
     }
 
+    /// The agent the last new session was started with.
+    pub fn last_agent(&self) -> Result<Agent> {
+        Ok(self.setting("last_agent")?.and_then(|name| name.parse().ok()).unwrap_or_default())
+    }
+
+    pub fn set_last_agent(&self, agent: Agent) -> Result<()> {
+        self.set_setting("last_agent", agent.name())
+    }
+
     /// The panes open when Deck last stopped. What an older or newer Deck
     /// wrote and this one cannot read is dropped.
     pub fn open_panes(&self) -> Result<OpenPanes> {
@@ -241,7 +250,6 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::Agent;
 
     #[test]
     fn the_last_folder_is_remembered_and_reassigned() -> Result<()> {

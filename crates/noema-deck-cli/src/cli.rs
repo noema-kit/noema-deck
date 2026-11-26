@@ -6,7 +6,11 @@ use clap::{Parser, Subcommand};
 use noema_deck_core::import;
 
 #[derive(Parser)]
-#[command(name = "noema-deck", version, about = "Organise Claude Code sessions by domain")]
+#[command(
+    name = "noema-deck",
+    version,
+    about = "Organise Claude Code and Codex sessions by domain"
+)]
 pub struct Cli {
     /// Store file. Defaults to the per-user application data directory.
     #[arg(long, global = true, value_name = "PATH")]
@@ -26,12 +30,12 @@ pub enum Command {
         #[arg(long, value_name = "TEXT")]
         query: Option<String>,
     },
-    /// Open a session in Claude Code.
+    /// Open a session in its agent.
     Open {
         /// The session's ID, or the start of it.
         session: String,
     },
-    /// Name a session, as Claude Code's `/rename` does.
+    /// Name a session where its agent keeps names.
     Rename {
         /// The session's ID, or the start of it.
         session: String,
@@ -88,7 +92,7 @@ pub enum DomainCommand {
     },
     /// Rename a domain.
     Rename { domain: String, name: String },
-    /// Delete a domain. Its sessions stay with Claude Code.
+    /// Delete a domain. Its sessions stay with their agents.
     Delete { domain: String },
     /// Make one domain a subdomain of another.
     Link { parent: String, child: String },
