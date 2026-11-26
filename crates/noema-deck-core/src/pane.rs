@@ -134,18 +134,50 @@ impl Drop for Pane {
     }
 }
 
+/// Whether a variable names the terminal Deck itself was started from, such
+/// as iTerm2 when started with `cargo run` there. A pane passing it on would
+/// claim to be that terminal, and a program would speak to it in that
+/// terminal's dialect: Neovim told it runs in iTerm2 writes colours as
+/// `38:2:R:G:B`, which a pane reads as other colours.
+fn another_terminal(name: &str) -> bool {
+    const NAMES: [&str; 10] = [
+        "TERM_PROGRAM",
+        "TERM_PROGRAM_VERSION",
+        "TERM_SESSION_ID",
+        "LC_TERMINAL",
+        "LC_TERMINAL_VERSION",
+        "COLORFGBG",
+        "VTE_VERSION",
+        "WT_SESSION",
+        "WT_PROFILE_ID",
+        "TERMINAL_EMULATOR",
+    ];
+    const PREFIXES: [&str; 6] =
+        ["ITERM_", "KITTY_", "GHOSTTY_", "WEZTERM_", "ALACRITTY_", "KONSOLE_"];
+    NAMES.contains(&name) || PREFIXES.iter().any(|prefix| name.starts_with(prefix))
+}
+
 fn command(launch: &Launch, environment: Option<&[(String, String)]>) -> CommandBuilder {
     let mut command = CommandBuilder::new(&launch.program);
     command.args(&launch.args);
     command.cwd(&launch.folder);
     if let Some(environment) = environment {
         command.env_clear();
-        for (name, value) in environment {
+        for (name, value) in environment.iter().filter(|(name, _)| !another_terminal(name)) {
             command.env(name, value);
         }
+    } else {
+        for (name, _) in std::env::vars_os() {
+            if name.to_str().is_some_and(another_terminal) {
+                command.env_remove(name);
+            }
+        }
     }
+    // A pane is its own terminal, and says so as VS Code's does.
     command.env("TERM", "xterm-256color");
     command.env("COLORTERM", "truecolor");
+    command.env("TERM_PROGRAM", "NoemaDeck");
+    command.env("TERM_PROGRAM_VERSION", env!("CARGO_PKG_VERSION"));
     // A desktop app starts without a locale, and a shell without one counts
     // each byte of an accented letter or an icon as a character. A terminal
     // sets one when the profile does not.
@@ -278,6 +310,21 @@ mod tests {
 
         assert!(read_all(&panes, pane)?.contains("set-nohome-xterm-256color"));
         Ok(())
+    }
+
+    #[test]
+    fn a_pane_does_not_claim_the_terminal_deck_was_started_from() {
+        let environment = [
+            ("TERM_PROGRAM".to_owned(), "iTerm.app".to_owned()),
+            ("LC_TERMINAL".to_owned(), "iTerm2".to_owned()),
+            ("ITERM_SESSION_ID".to_owned(), "w0t0p0".to_owned()),
+            ("HOME".to_owned(), "/home/someone".to_owned()),
+        ];
+        let command = command(&shell("true"), Some(&environment));
+        let value = |name| command.get_env(name).and_then(std::ffi::OsStr::to_str);
+        assert_eq!(value("TERM_PROGRAM"), Some("NoemaDeck"));
+        assert_eq!((value("LC_TERMINAL"), value("ITERM_SESSION_ID")), (None, None));
+        assert_eq!(value("HOME"), Some("/home/someone"));
     }
 
     #[test]
