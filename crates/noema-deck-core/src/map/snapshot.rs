@@ -9,7 +9,7 @@ use crate::{
     domain::DomainId,
     folder,
     session::{Session, SessionKey},
-    store::{Appearance, OpenPanes, Store},
+    store::{Appearance, OpenPanes, Shortcuts, Store},
 };
 
 /// Everything on the map at one moment.
@@ -28,6 +28,8 @@ pub struct Snapshot {
     /// The panes open when Deck last stopped.
     pub panes: OpenPanes,
     pub appearance: Appearance,
+    /// The shortcuts moved to other keys.
+    pub shortcuts: Shortcuts,
 }
 
 #[derive(Debug, Serialize)]
@@ -103,6 +105,7 @@ impl Snapshot {
             last_folder: store.last_folder()?.as_deref().map(folder::label),
             panes: store.open_panes()?,
             appearance: store.appearance()?,
+            shortcuts: store.shortcuts()?,
         })
     }
 }

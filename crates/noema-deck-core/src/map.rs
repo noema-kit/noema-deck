@@ -102,6 +102,7 @@ impl Map {
             Request::RenameSession { session, title } => self.rename_session(&session, &title)?,
             Request::KeepPanes { panes } => self.store.set_open_panes(panes)?,
             Request::SetAppearance { appearance } => self.store.set_appearance(appearance)?,
+            Request::SetShortcuts { shortcuts } => self.store.set_shortcuts(shortcuts)?,
         }
         self.snapshot()
     }

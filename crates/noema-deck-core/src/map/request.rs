@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::{
     domain::DomainId,
     session::SessionKey,
-    store::{Appearance, OpenPanes},
+    store::{Appearance, OpenPanes, Shortcuts},
 };
 
 /// A request about the map. Every one is answered with a fresh
@@ -74,5 +74,9 @@ pub enum Request {
     /// Change how Deck looks.
     SetAppearance {
         appearance: Appearance,
+    },
+    /// Move shortcuts to other keys. The ones left out keep their own.
+    SetShortcuts {
+        shortcuts: Shortcuts,
     },
 }

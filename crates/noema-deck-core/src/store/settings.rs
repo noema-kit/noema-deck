@@ -1,6 +1,9 @@
 //! Small things Deck remembers between runs.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result, ensure};
 use rusqlite::OptionalExtension;
@@ -132,6 +135,41 @@ impl Appearance {
     }
 }
 
+/// The keys the person moved Deck's shortcuts to, by the action each runs,
+/// such as `split_right` to `mod+shift+KeyR`. A key is the modifiers it is
+/// held with, `mod` (Command, or Control elsewhere), `ctrl`, `alt` and
+/// `shift`, then the key's code as the browser names it. An action left out
+/// keeps the interface's own key.
+pub type Shortcuts = BTreeMap<String, String>;
+
+/// The same shortcuts, or a refusal of a name or key that is not one, or of
+/// one key given to two actions.
+fn checked_shortcuts(shortcuts: Shortcuts) -> Result<Shortcuts> {
+    ensure!(shortcuts.len() <= 64, "Too many shortcuts");
+    let mut keys = BTreeSet::new();
+    for (action, key) in &shortcuts {
+        ensure!(
+            (1..=32).contains(&action.len())
+                && action.bytes().all(|byte| byte.is_ascii_lowercase() || byte == b'_'),
+            "An action's name is lowercase letters and underscores"
+        );
+        let mut parts: Vec<&str> = key.split('+').collect();
+        let code = parts.pop().unwrap_or_default();
+        let mut held = BTreeSet::new();
+        ensure!(
+            (1..=20).contains(&code.len())
+                && code.bytes().all(|byte| byte.is_ascii_alphanumeric())
+                && parts.iter().all(
+                    |part| ["mod", "ctrl", "alt", "shift"].contains(part) && held.insert(*part)
+                )
+                && (held.contains("mod") || held.contains("ctrl")),
+            "A shortcut is held with Command or Control, as `mod+KeyB`"
+        );
+        ensure!(keys.insert(key.as_str()), "One key cannot run two actions");
+    }
+    Ok(shortcuts)
+}
+
 impl Store {
     /// The folder the last new session was started in.
     pub fn last_folder(&self) -> Result<Option<PathBuf>> {
@@ -170,6 +208,17 @@ impl Store {
 
     pub fn set_appearance(&self, appearance: Appearance) -> Result<()> {
         self.set_setting("appearance", &serde_json::to_string(&appearance.checked()?)?)
+    }
+
+    /// The shortcuts moved to other keys. What an older or newer Deck wrote
+    /// and this one cannot read is none.
+    pub fn shortcuts(&self) -> Result<Shortcuts> {
+        let text = self.setting("shortcuts")?;
+        Ok(text.and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default())
+    }
+
+    pub fn set_shortcuts(&self, shortcuts: Shortcuts) -> Result<()> {
+        self.set_setting("shortcuts", &serde_json::to_string(&checked_shortcuts(shortcuts)?)?)
     }
 
     fn setting(&self, name: &str) -> Result<Option<String>> {
@@ -243,6 +292,33 @@ mod tests {
 
         store.set_setting("open_panes", r#"{"open":[{"kind":"window"}]}"#)?;
         assert_eq!(store.open_panes()?, OpenPanes::default());
+        Ok(())
+    }
+
+    #[test]
+    fn shortcuts_are_kept_and_a_key_that_is_not_one_is_refused() -> Result<()> {
+        let store = Store::in_memory()?;
+        assert!(store.shortcuts()?.is_empty());
+        let moved = Shortcuts::from([
+            ("split_right".into(), "mod+shift+KeyR".into()),
+            ("fit".into(), "ctrl+alt+Digit9".into()),
+        ]);
+        store.set_shortcuts(moved.clone())?;
+        assert_eq!(store.shortcuts()?, moved);
+
+        let wrong = [
+            ("Split".into(), "mod+KeyR".into()),
+            ("split".into(), "shift+KeyR".into()),
+            ("split".into(), "mod+mod+KeyR".into()),
+            ("split".into(), "mod+Key R".into()),
+        ];
+        for (action, key) in wrong {
+            assert!(store.set_shortcuts(Shortcuts::from([(action, key)])).is_err());
+        }
+        let twice =
+            Shortcuts::from([("a".into(), "mod+KeyA".into()), ("b".into(), "mod+KeyA".into())]);
+        assert!(store.set_shortcuts(twice).is_err());
+        assert_eq!(store.shortcuts()?, moved);
         Ok(())
     }
 
