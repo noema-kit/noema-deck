@@ -69,6 +69,10 @@ export async function apply(appearance) {
   if (mine !== turn) return;
   const terminal = {
     theme: theme.terminal[mode],
+    // On a light ground, text a prompt colours too close to it is shifted
+    // until it reads, as VS Code does. A dark ground shows a program's own
+    // colours as they are, so an editor's colour scheme stays true.
+    minimumContrastRatio: mode === "light" ? 4.5 : 1,
     fontFamily: mono,
     fontSize: appearance.terminal_size,
     lineHeight: appearance.line_height,

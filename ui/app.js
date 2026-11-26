@@ -1125,14 +1125,7 @@ function addPane(name, folder, key) {
   pane.node = el("div", { className: "pane" }, head, body);
   $("shell").append(pane.node);
 
-  pane.term = new Terminal({
-    cursorBlink: true,
-    scrollback: 5000,
-    // As VS Code does: text a prompt colours too close to its background is
-    // shifted until it reads, as white on a pale segment in a light theme.
-    minimumContrastRatio: 4.5,
-    ...look.terminal,
-  });
+  pane.term = new Terminal({ cursorBlink: true, scrollback: 5000, ...look.terminal });
   pane.fit = new FitAddon.FitAddon();
   pane.term.loadAddon(pane.fit);
   pane.term.open(body);
@@ -1148,9 +1141,28 @@ function addPane(name, folder, key) {
   const live = () => pane.id !== null && !pane.ended;
 
   pane.term.attachCustomKeyEventHandler((event) => !shortcut(event));
-  pane.term.onData((data) => {
-    // Keystrokes go one after another, so they arrive in the order typed.
-    if (live()) pane.sent = pane.sent.then(() => paneCall("write", { pane: pane.id, data })).catch(() => {});
+  pane.term.onData((data) => live() && type(pane, data));
+  // A program can ask to hear when Deck turns light or dark, as Neovim does
+  // (mode 2031), and ask which it is now (996). It then reads the colours
+  // again, so a running editor follows a change of theme.
+  pane.term.parser.registerCsiHandler({ prefix: "?", final: "h" }, (params) => {
+    if (params.includes(2031)) pane.hears = true;
+    return false;
+  });
+  pane.term.parser.registerCsiHandler({ prefix: "?", final: "l" }, (params) => {
+    if (params.includes(2031)) pane.hears = false;
+    return false;
+  });
+  // A program first asks whether the mode is known (DECRQM), and turns it on only when it is.
+  pane.term.parser.registerCsiHandler({ prefix: "?", intermediates: "$", final: "p" }, (params) => {
+    if (params[0] !== 2031) return false;
+    if (live()) type(pane, `\x1b[?2031;${pane.hears ? 1 : 2}$y`);
+    return true;
+  });
+  pane.term.parser.registerCsiHandler({ prefix: "?", final: "n" }, (params) => {
+    if (params[0] !== 996) return false;
+    if (live()) type(pane, scheme());
+    return true;
   });
   pane.term.onResize(({ rows, cols }) => {
     if (live()) paneCall("resize", { pane: pane.id, rows, cols }).catch(() => {});
@@ -1165,6 +1177,14 @@ function addPane(name, folder, key) {
   panes.push(pane);
   return pane;
 }
+
+/** Sends text to a pane's process as if typed. Keystrokes go one after another, so they arrive in the order typed. */
+function type(pane, data) {
+  pane.sent = pane.sent.then(() => paneCall("write", { pane: pane.id, data })).catch(() => {});
+}
+
+/** The report that says whether Deck is dark (1) or light (2). */
+const scheme = () => `\x1b[?997;${look.mode === "dark" ? 1 : 2}n`;
 
 /** Copies the pane's output to its terminal until the process ends or the pane closes. */
 async function follow(pane) {
@@ -1303,12 +1323,18 @@ window.addEventListener("pagehide", () => {
 // The desktop window on macOS draws under its title bar, where the window's buttons sit.
 document.body.classList.toggle("overlaid", Boolean(tauri) && navigator.userAgent.includes("Mac"));
 // A new look repaints the map and restyles every terminal.
-watch(({ painter, terminal }) => {
+let shownMode = null; // Light or dark, as the terminals were last told.
+watch(({ painter, terminal, mode }) => {
   map.paintWith(painter);
   for (const pane of panes) {
     Object.assign(pane.term.options, terminal);
+    // The graphics card keeps each glyph drawn in its colours, which a new
+    // palette or contrast leaves stale until they are drawn again.
+    pane.term.clearTextureAtlas();
     pane.fit.fit();
+    if (pane.hears && shownMode && mode !== shownMode && pane.id !== null && !pane.ended) type(pane, scheme());
   }
+  shownMode = mode;
 });
 setupSettings(
   (appearance) => run("set_appearance", { appearance }),
