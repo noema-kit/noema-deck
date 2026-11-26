@@ -21,7 +21,7 @@ flowchart LR
 | `noema-deck-core` | Everything Deck knows and does. No window, no arguments, no printing. |
 | `noema-deck-cli` | The commands, what they print, and a local server that gives the interface to a browser. |
 | `noema-deck` | The Tauri window. Given a command, it hands it to the CLI library, so one program is both the app and the command-line tool. |
-| `ui/` | Plain HTML, CSS and JavaScript with no build step. `app.js` sends requests and fills the lists, `map.js` runs the map and hands its drawing to the theme's painter, and `theme.js` and `settings.js` put on and change the look. Each theme is a folder in `ui/themes/`. |
+| `ui/` | Plain HTML, CSS and JavaScript with no build step. `app.js` sends requests and fills the lists, `map.js` runs the map and hands its drawing to the theme's painter, `theme.js` and `settings.js` put on and change the look, and `keys.js` holds the shortcuts. Each theme is a folder in `ui/themes/`. |
 
 ## Core modules
 
@@ -55,9 +55,9 @@ Every rule lives in the core: a refused link, a domain's count, which sessions a
 
 ## Interface
 
-- **No state of its own.** Domains and sessions come only from snapshots. The page keeps layout choices alone, such as panel widths, in its local storage. The panes to reopen and their layout go to the store, so they follow the store and not the web view.
+- **Local storage** holds only layout choices, such as panel widths and folded domains. The panes to reopen, the appearance and the shortcuts go to the store, so they follow the store and not the web view.
 - **Look.** The appearance comes in the snapshot and is changed by a request, like everything else. `theme.js` loads the theme's style sheet and painter, sets the mode and typefaces on the page, and restyles the map and every terminal. `boot.js` runs before the page is drawn and puts on the last run's look from local storage, so the window does not flash the default.
-- **Title bar.** The window's title bar is an overlay, with its buttons centred in the page's top bar. The page marks the regions that drag and zoom the window, and one capability file grants it those two calls.
+- **Title bar.** The window's title bar is an overlay, with its buttons centred on the page's top row. The page marks the regions that drag and zoom the window. One capability file grants it those two calls and the app's version, for Settings.
 
 ## Map drawing
 
@@ -76,7 +76,7 @@ One SQLite file in the per-user application data directory. Nothing from a sessi
 | `domain` | `id`, `name`, `x`, `y` |
 | `link` | `parent`, `child` |
 | `assignment` | `domain`, `agent`, `session` |
-| `setting` | `name`, `value`: the last folder, the panes to reopen with their layout tree, and the appearance |
+| `setting` | `name`, `value`: the last folder, the panes to reopen with their layout tree, the appearance, and the shortcuts moved to other keys |
 
 `PRAGMA user_version` counts the upgrade steps a store has had. Opening runs the ones it lacks, and refuses a store from a newer Deck.
 
@@ -86,10 +86,10 @@ A pane runs one command on a pseudoterminal: Claude Code on a session, or the us
 
 - **Two threads per pane.** One copies what the process writes. The other waits for the process to end.
 - **Ending.** A pane ends when its terminal closes, or shortly after its process exits if something it started holds the terminal open.
-- **Many panes.** Any number can run. The interface shows one or two and keeps reading the rest, which is how it knows a session is active.
+- **Many panes.** Any number can run. The interface keeps reading those out of sight too, which is how it knows a session is active.
 - **Reading waits.** The interface asks for output and the answer comes when there is some, or after twenty seconds.
-- **Environment.** A desktop app starts without a terminal's `PATH`. Deck asks the login shell for its environment once, at startup, and runs every pane with it.
-- **Drawing.** Each terminal is xterm.js drawing through WebGL, and through plain elements when WebGL is unavailable.
+- **Environment.** A desktop app starts without a terminal's `PATH`. Deck asks the login shell for its environment once, at startup, and runs every pane with it, minus the variables of whatever terminal started Deck, and with `TERM=xterm-256color`, `COLORTERM=truecolor` and `TERM_PROGRAM=NoemaDeck`.
+- **Drawing.** Each terminal is xterm.js drawing through WebGL, and through plain elements when WebGL is unavailable. The page answers a program's question about light and dark (mode 2031) itself.
 
 ## Local server
 

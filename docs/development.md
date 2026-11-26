@@ -27,7 +27,7 @@ cargo test --workspace
 scripts/selftest.sh
 ```
 
-The self-test opens the real window and drives the map, the session list, terminal panes, a new session, an import and the Appearance sheet from inside the page. It uses a fixture store, fixture sessions and a stand-in for Claude Code, so it reads and changes nothing of yours.
+The self-test opens the real window and drives the map, the session list, terminal panes, a new session, an import, Settings and shortcuts from inside the page. It uses a fixture store, fixture sessions and a stand-in for Claude Code, so it reads and changes nothing of yours.
 
 ## Release
 

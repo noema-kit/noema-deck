@@ -1,78 +1,85 @@
 <p align="center">
-  <img src="crates/noema-deck/icons/icon.png" width="128" alt="Noema Deck icon">
+  <img src="crates/noema-deck/icons/icon.png" width="112" alt="">
 </p>
 
 <h1 align="center">Noema Deck</h1>
 
-<p align="center">A desktop workbench that organises Claude Code sessions by domain.</p>
-
-![The map of domains, with the session list on the left and the System domain's panel on the right](docs/images/map.jpg)
-
 <p align="center">
-  <img src="docs/images/dark.jpg" width="49%" alt="The same window in the Noema theme's dark mode">
-  <img src="docs/images/galaxy.jpg" width="49%" alt="The same window in the Galaxy theme, with domains drawn as stars">
+  <b>A map for your Claude Code sessions.</b><br>
+  Sort them by domain, see what you work on, and run each one in a tiled terminal.
 </p>
 
-Deck is the first part of [Noema Kit](https://github.com/noema-kit), a set of tools for building an AI-native personal knowledge system.
+<p align="center">
+  <a href="https://github.com/noema-kit/noema-deck/releases/latest"><img src="https://img.shields.io/github/v/release/noema-kit/noema-deck?label=release" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="macOS">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-blue" alt="MIT licence"></a>
+</p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/noema-kit/noema-deck/releases/latest">Download</a> ·
+  <a href="docs/design.md">Design</a> ·
+  <a href="docs/architecture.md">Architecture</a> ·
+  <a href="docs/themes.md">Themes</a>
+</p>
 
-- **Domains.** Group sessions by domain on a map. A domain can have subdomains and several parents, and a session can belong to several domains.
-- **Original sessions.** Deck manages the sessions Claude Code creates. It stores only assignments and keeps no copy.
-- **Opt-in.** A session appears once it is assigned to a domain. Start one in a domain, or add past ones from the history.
-- **Arrange.** One click lays the map out with root domains at the core and deeper subdomains farther out.
-- **Themes.** A quiet light and dark default in the Noema Kit's colours, and Galaxy, a night sky. Fonts, including the terminal's, are yours to choose.
-- **Terminal.** A session opens in a terminal pane that runs Claude Code. Panes split right or down and tile freely, and a pane can run a plain shell.
-- **Continuity.** Open panes reopen at the next start, tiled as they were, and a session that finished out of sight is marked ready.
-- **Command line.** The same program lists, opens, renames and assigns sessions from a shell.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/dark.jpg">
+  <img src="docs/images/light.jpg" alt="Deck with the domain tree on the left, the map of domains in the middle and the System domain's sessions on the right">
+</picture>
 
-## Run
+## Why
 
-Download the macOS app from [Releases](https://github.com/noema-kit/noema-deck/releases). It is not notarised, so open it once, then choose **Open Anyway** in System Settings → Privacy & Security. Claude Code must be installed.
+Claude Code keeps every session, but as one flat history. Deck adds a single idea: **domains**. Put each session in the domains it belongs to, and the map shows what you work on, how the areas connect and where you were busy lately.
 
-To build from source, install Rust 1.95 and Claude Code.
+## Highlights
+
+- **Domain map.** Domains nest and may have several parents. Size shows how many sessions a domain holds, colour how recently you worked there. One click lays out the whole map by depth.
+- **Your real sessions.** Deck opens Claude Code's own sessions in place and stores only which domains they belong to. No copies, and no chat window of its own.
+- **Tiled terminal.** Run sessions and shells side by side. Drag one onto a pane to split it. Open panes come back where they were.
+- **File-tree sidebar.** Browse domains as folders, with running sessions marked.
+- **Made to fit.** A quiet light and dark theme, Galaxy for a night sky, any installed font, and shortcuts you can rebind.
+- **Scriptable.** The same program lists, opens, renames and assigns sessions from a shell.
+
+## Install
+
+Download the disk image from [Releases](https://github.com/noema-kit/noema-deck/releases/latest) and move Deck to Applications. It is not notarised, so open it once, then choose **Open Anyway** in System Settings → Privacy & Security. Deck needs [Claude Code](https://github.com/anthropics/claude-code).
+
+Or build it with Rust 1.95:
 
 ```sh
-cargo run -p noema-deck         # the desktop window
-cargo run -- serve              # the same interface at http://127.0.0.1:4270
-cargo run -- --help             # the commands
+cargo run -p noema-deck     # the desktop app
+cargo run -- serve          # the same interface at http://127.0.0.1:4270
+cargo run -- --help         # the command-line tool
 ```
 
-## Use
+## Get started
 
-| Action | How |
+1. **Add a domain.** Double-click the map. Typing a folder path instead imports the folder's tree.
+2. **Add sessions.** Start a **New session** in a domain, or bring in past ones with **Add existing**.
+3. **Work.** Click a session to open it. ⌘D splits the pane, ⌘1 and ⌘2 switch between map and terminal, and ⌘, opens Settings.
+
+## How it works
+
+- **Claude Code owns the sessions.** Deck reads its transcripts and runs `claude --resume`. It keeps only domains, links and assignments, in one local SQLite file.
+- **The core owns the rules.** A Rust core answers every request with a snapshot of the whole map. The desktop window and a local web server pass requests through unchanged, and the interface only draws.
+- **Nothing extra to install.** The interface is plain HTML and JavaScript with no build step. Panes run your login shell, and Deck uses your installed fonts.
+
+## Themes
+
+<img src="docs/images/galaxy.jpg" alt="Deck in the Galaxy theme, with domains drawn as stars">
+
+**Noema**, the default, takes its quiet palette from the Noema Kit mark. **Galaxy** draws domains as stars. A theme is a folder of colours and a map painter, described in [Themes](docs/themes.md).
+
+## Documentation
+
+| | |
 | --- | --- |
-| Add a domain | Double-click the map. A folder path imports its tree. |
-| See every domain | The arrange button in the top bar lays the map out, and the frame button fits it |
-| Move or link domains | Drag one. Shift-drag from a parent to a subdomain. |
-| Assign a session | Drag it from the list or the domain panel onto a domain |
-| Start a session | **New session** in the domain panel, or `+` in the session list. A name is optional. |
-| Add past sessions | **Add existing** in the domain panel |
-| Open a session | Click it, or drag it into the terminal: onto a pane's edge to split there, or onto its middle to replace it |
-| Move a pane | Drag its header onto another pane's edge or middle |
-| Open a shell | `>_` in the session list, or split a pane |
-| Rename a session or shell | Double-click its row or its pane's title |
-| Resize | Drag the edge of the session list or the domain panel, or a divider between panes |
-| Change the look | The sun in the top bar opens Appearance: theme, light or dark, and fonts |
+| [Design](docs/design.md) | What Deck does, and why |
+| [Architecture](docs/architecture.md) | How it is built |
+| [Themes](docs/themes.md) | How to make a theme |
+| [Development](docs/development.md) | Building, testing and releasing |
 
-| Key | Action |
-| --- | --- |
-| ⌘1, ⌘2 | Map, terminal |
-| ⌘B, ⌘K | Session list, search |
-| ⌘D, ⇧⌘D | Split the active pane right, down |
-| ⌘0 | Show every domain |
-| ⌘, | Appearance |
-
-Off macOS, the number keys take Ctrl and the letter keys take Ctrl+Shift.
-
-## Documents
-
-| Document | Content |
-| --- | --- |
-| [Design](docs/design.md) | What Deck does. |
-| [Themes](docs/themes.md) | How a theme is made. |
-| [Architecture](docs/architecture.md) | How it is built. |
-| [Development](docs/development.md) | Running, checking and conventions. |
+Deck is the first tool of [Noema Kit](https://github.com/noema-kit), a set of tools for an AI-native personal knowledge system.
 
 ## Licence
 

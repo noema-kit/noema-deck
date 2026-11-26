@@ -1,6 +1,6 @@
 # Themes
 
-A theme sets Deck's colours and typefaces and decides how the map is drawn. Deck ships two: **Noema**, the default, in light and dark, and **Galaxy**, a night sky. [Design](design.md#appearance) says how a person chooses one.
+A theme sets Deck's colours and typefaces and decides how the map is drawn. Deck ships two: **Noema**, the default, in light and dark, and **Galaxy**, a night sky. [Design](design.md#settings) says how a person chooses one.
 
 ## A theme's folder
 
@@ -16,7 +16,7 @@ Each theme is a folder under `ui/themes/`, named by its ID, and listed in `ui/th
 
 | Field | Content |
 | --- | --- |
-| `name`, `description` | Shown in the Appearance sheet. |
+| `name`, `description` | Shown in Settings, under Appearance. |
 | `modes` | `["light", "dark"]`, or one of them. A theme with one mode keeps to it whatever the person chose. |
 | `swatch` | Per mode, four colours for the theme's card: map, plate, a domain and the accent. |
 | `terminal` | Per mode, an xterm.js theme: `background`, `foreground`, `cursor`, `selectionBackground` and the sixteen ANSI colours. |
@@ -61,6 +61,6 @@ A **scene** is one frame: `ctx`, `width`, `height`, `ratio`, `view`, `ink` (the 
 
 1. Copy `ui/themes/noema` to a new folder and add its name to `themes.json`.
 2. Change the manifest, the tokens and the painter.
-3. Choose it in the Appearance sheet (⌘,).
+3. Choose it in Settings, under Appearance (⌘,).
 
 Themes are part of the interface and run with its rights. Loading themes from outside the app is planned.
