@@ -34,7 +34,7 @@ button { cursor: pointer; }
 
 /* Layout: what the docked plates leave free */
 
-body { --top: 40px; --lights: 10px; --list: 248px; --panel: 320px; --left: 0px; --right: 0px; }
+body { --top: 40px; --lights: 10px; --list: 264px; --panel: 320px; --left: 0px; --right: 0px; }
 body.listed { --left: var(--list); }
 body.focused { --right: var(--panel); }
 /* The desktop window on macOS draws its three buttons at the left of the top bar. */
@@ -74,31 +74,30 @@ body.overlaid { --lights: 80px; }
 
 #list, #panel, #shell {
   position: fixed;
-  top: var(--top);
+  top: 0;
   bottom: 0;
   display: flex;
   flex-direction: column;
   background: var(--surface);
 }
 
-/* One bar along the top of the window, as in other desktop apps: the window's
-   buttons, the views and the map's tools. Its empty stretches drag the window. */
-#top {
+/* No bar runs across the window. As in Claude's and Codex's desktop apps, the
+   session list takes the full height, and the window's buttons, the list's
+   toggle and the two views sit together at its top left, staying there when the
+   list is hidden. The strip above the map and the empty parts of headers drag
+   the window. */
+#chrome {
   position: fixed;
   top: 0;
-  left: 0;
-  right: 0;
-  z-index: 7;
+  left: var(--lights);
+  z-index: 9;
   display: flex;
   align-items: center;
   gap: 2px;
   height: var(--top);
-  padding: 0 8px 0 var(--lights);
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
 }
 
-#top button {
+#chrome button, #top button {
   position: relative;
   display: grid;
   flex: none;
@@ -112,15 +111,12 @@ body.overlaid { --lights: 80px; }
   color: var(--muted);
 }
 
-#top button:hover { background: var(--raised); color: var(--ink); }
-#top button.on { color: var(--accent); }
-#top button svg { width: 16px; height: 16px; stroke-width: 1.35; }
-#top .views { display: flex; gap: 2px; margin-left: 6px; padding-left: 8px; border-left: 1px solid var(--line); }
-#where { flex: 1; min-width: 0; overflow: hidden; color: var(--muted); font: var(--display-style) 400 14px var(--font-display); text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-#top .map-tools { display: flex; gap: 2px; }
-body:not(.on-map) #top .map-tools { display: none; }
+#chrome button:hover, #top button:hover { background: var(--raised); color: var(--ink); }
+#chrome button.on { color: var(--accent); }
+#chrome button svg, #top button svg { width: 16px; height: 16px; stroke-width: 1.35; }
+#toggle-list { margin-right: 6px; }
 /* A session finished out of sight. */
-#top button.ready::after {
+#chrome button.ready::after {
   position: absolute;
   top: 4px;
   right: 4px;
@@ -131,18 +127,35 @@ body:not(.on-map) #top .map-tools { display: none; }
   content: "";
 }
 
+#top {
+  position: fixed;
+  top: 0;
+  left: var(--left);
+  right: var(--right);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  height: var(--top);
+  padding: 0 8px;
+}
+
+body:not(.on-map) #top { display: none; }
+/* Without the list, the strip starts after the buttons at the top left. */
+body:not(.listed) #top { left: calc(var(--lights) + 104px); }
+
 #list { left: 0; z-index: 6; width: var(--list); border-right: 1px solid var(--line); }
 body:not(.listed) #list { display: none; }
 #panel { right: 0; z-index: 5; width: var(--panel); border-left: 1px solid var(--line); }
 
-#list header, #panel header { display: flex; align-items: center; gap: 6px; padding: 12px 10px 8px 14px; }
-#panel header { padding: 10px 8px 0 6px; }
+#panel header { display: flex; align-items: center; gap: 6px; padding: 4px 8px 0 6px; }
 
 h2 { flex: 1; margin: 0; font: 500 calc(19px * var(--display-size))/1.1 var(--font-display); }
 h3 { margin: 12px 14px 4px; color: var(--muted); font: 500 11.5px/1 var(--font-ui); }
 
 /* Icon buttons: a small square that lights up under the pointer. */
-#list header button, #close-panel, #close-settings, .pane header button, .entry .tools button {
+#list h3 button, #close-panel, #close-settings, .pane header button, .node .tools button {
   display: grid;
   flex: none;
   place-items: center;
@@ -155,9 +168,9 @@ h3 { margin: 12px 14px 4px; color: var(--muted); font: 500 11.5px/1 var(--font-u
   color: var(--muted);
 }
 
-#list header button:hover, #close-panel:hover, #close-settings:hover, .pane header button:hover, .entry .tools button:hover { background: var(--raised); color: var(--ink); }
-.pane header .close:hover, .entry .tools .close:hover { color: var(--danger); }
-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+#list h3 button:hover, #close-panel:hover, #close-settings:hover, .pane header button:hover, .node .tools button:hover { background: var(--raised); color: var(--ink); }
+.pane header .close:hover, .node .tools .close:hover { color: var(--danger); }
+button svg, .row svg, .node svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 
 /* Edges to drag: the session list's, the domain panel's, and those between panes. */
 #list-edge, #panel-edge, .divider { z-index: 1; flex: none; cursor: col-resize; touch-action: none; }
@@ -186,43 +199,115 @@ input:not([type="checkbox"]):focus-visible, select:focus-visible { outline: none
 
 .note { margin: 2px 16px 0; color: var(--muted); font-size: 12.5px; }
 
-/* The session list */
+/* The session list: what to start, the open sessions, and every domain as a
+   folder of its subdomains and sessions, which fold away as in a file tree. */
 
-#list-search { width: auto; margin: 0 10px 2px; }
-#list-body { flex: 1; min-height: 0; overflow-y: auto; }
-#list ul { margin: 0; padding: 0; list-style: none; }
-#list-note { margin: 14px; }
+.list-top { flex: none; height: var(--top); }
+.actions-list { display: grid; flex: none; gap: 1px; padding: 0 8px 6px; }
+#list footer.actions-list { padding: 6px 8px 8px; border-top: 1px solid var(--line); }
 
-.entry {
-  position: relative;
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr);
-  gap: 0 8px;
+.actions-list .row {
+  display: flex;
   align-items: center;
-  padding: 6px 10px 6px 14px;
+  gap: 10px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+}
+
+.actions-list .row:hover, .actions-list .search:focus-within { background: var(--field); }
+.actions-list .row svg { flex: none; color: var(--muted); }
+.actions-list .search { cursor: text; }
+.actions-list .search input { height: 30px; padding: 0; border: 0; background: none; }
+.actions-list .search input:focus-visible { border: 0; }
+
+#list-body { flex: 1; min-height: 0; padding-bottom: 8px; overflow-y: auto; }
+#list ul { margin: 0; padding: 0 8px; list-style: none; }
+#list-note { margin: 6px 16px; }
+#list h3 { display: flex; align-items: center; gap: 2px; height: 28px; margin: 16px 8px 4px 8px; }
+/* A part's heading folds it away, as a section of a file tree does. */
+#list h3 .fold { display: flex; flex: 1; align-items: center; gap: 6px; height: 28px; padding: 0 8px 0 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; opacity: 1; width: auto; }
+#list h3 .fold:hover { background: var(--field); color: var(--ink); }
+#list h3 .fold svg { width: 12px; height: 12px; stroke-width: 1.6; transition: transform 120ms; }
+#list h3.folded .fold svg { transform: rotate(-90deg); }
+#list h3 .fold span { flex: 1; }
+#list h3 .fold small { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+#list h3 > button:not(.fold) { width: 22px; height: 22px; opacity: 0; }
+#list h3:hover > button, #list h3 > button:focus-visible { opacity: 1; }
+#list h3 > button:not(.fold) svg { width: 14px; height: 14px; }
+#list h3.folded > button:not(.fold) { display: none; }
+
+/* One row: an open session, a domain, or a session in a domain. As in a file
+   tree, a domain is a folder and its sessions are the files in it: a domain
+   has an arrow, a folder and a name in full ink, and a session a chat mark,
+   a lighter title and its time. Each level steps in by an arrow and a gap, so
+   what a domain holds lines up under its folder, and a hairline below each
+   arrow shows the levels. */
+.node {
+  --step: 18px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  margin-bottom: 1px;
+  padding: 0 8px 0 calc(6px + var(--depth, 0) * var(--step));
+  border-radius: 6px;
   cursor: pointer;
 }
 
-.entry:hover, .entry:focus-visible { outline: none; background: var(--field); }
-.entry.current { background: var(--accent-wash); box-shadow: inset 2px 0 var(--accent-line); }
-.entry .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.entry .sub { grid-column: 2; overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
-
-/* The tools lie over the end of a row only while the pointer or the keyboard is on it. */
-.entry .tools {
+.node::before {
   position: absolute;
-  top: 50%;
-  right: 6px;
-  display: none;
-  transform: translateY(-50%);
-  border-radius: 5px;
-  background: var(--raised);
-  box-shadow: -10px 0 10px var(--surface);
+  top: 0;
+  bottom: 0;
+  left: 12px;
+  width: calc(var(--depth, 0) * var(--step));
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--muted) 30%, transparent) 0 1px, transparent 1px var(--step));
+  content: "";
+  pointer-events: none;
 }
 
-.entry:hover .tools, .entry:focus-within .tools { display: flex; }
+.node:hover, .node:focus-visible { outline: none; background: var(--field); }
+.node.current { background: var(--accent-wash); color: var(--ink); }
+.node .title { flex: 1; min-width: 0; margin-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node .meta { flex: none; min-width: 20px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.node .mark, .node .kind { display: grid; flex: none; place-items: center; width: 12px; height: 16px; color: var(--muted); }
+.node .kind { width: 16px; }
+.node .mark svg { width: 12px; height: 12px; stroke-width: 1.5; transition: transform 120ms; }
+.node .kind svg { width: 15px; height: 15px; stroke-width: 1.25; }
+.node.folded .mark svg { transform: rotate(-90deg); }
 
-.dot { width: 7px; height: 7px; border-radius: 50%; }
+.node.domain .title { color: var(--ink); font-size: 13.5px; font-weight: 500; }
+.node.domain .kind { color: var(--accent); }
+.node.domain .kind svg { fill: var(--accent-wash); }
+/* A domain with no session yet: the same name, an empty folder. */
+.node.domain.empty .kind { color: var(--muted); }
+.node.domain.empty .kind svg { fill: none; }
+
+.node.leaf .title { color: color-mix(in srgb, var(--ink) 78%, var(--muted)); font-size: 13px; }
+.node.leaf.current .title, .node.leaf:hover .title { color: var(--ink); }
+.node.leaf .kind svg { width: 13px; height: 13px; opacity: 0.8; }
+/* A running session shows its state where the chat mark was. */
+.node .kind .dot.idle { display: none; }
+.node .kind:has(.dot:not(.idle)) svg { display: none; }
+.node.more { color: var(--muted); font-size: 12px; }
+/* A domain a carried session would join. */
+.node.target { background: var(--accent-wash); box-shadow: inset 0 0 0 1px var(--accent-line); }
+
+/* While the pointer or the keyboard is on a row, its tools take the place of
+   its count or time, so the two never overlap. */
+.node .tools { display: none; flex: none; gap: 2px; margin-right: -4px; }
+.node .tools button { width: 24px; height: 24px; }
+.node .tools button svg { width: 15px; height: 15px; }
+.node:hover .tools, .node:focus-within .tools { display: flex; }
+.node:hover .meta, .node:focus-within .meta { display: none; }
+
+.dot { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+.dot.idle { background: none; }
 .dot.active { background: var(--live); }
 .dot.quiet { background: var(--quiet); }
 .dot.ended { border: 1px solid var(--muted); }
@@ -347,10 +432,13 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
   min-height: 0;
 }
 
-.pane header { display: flex; flex: none; align-items: center; gap: 2px; height: 36px; padding: 0 6px 0 14px; border-bottom: 1px solid var(--line); }
+.pane header { display: flex; flex: none; align-items: center; gap: 2px; height: var(--top); padding: 0 6px 0 14px; border-bottom: 1px solid var(--line); }
+/* Without the list, the pane at the top left makes room for the buttons there. */
+body:not(.listed) .pane.corner header { padding-left: calc(var(--lights) + 108px); }
+.pane .gap { flex: 1; align-self: stretch; }
 .pane.active header { box-shadow: inset 0 -1px var(--accent); }
 .pane .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 calc(15px * var(--display-size)) var(--font-display); }
-.pane .sub { flex: 1; min-width: 0; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.pane .sub { flex: 0 1 auto; min-width: 0; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .pane .term { flex: 1; min-height: 0; padding: 8px 2px 4px 12px; }
 
 /* Floating pieces */
@@ -358,7 +446,7 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 #namer, #starter { position: fixed; z-index: 8; width: 300px; }
 #namer input { height: 34px; border-color: var(--accent); background: var(--surface); box-shadow: var(--shadow); font: var(--display-style) 400 16px var(--font-display); }
 
-#starter, #help, .sheet {
+#starter, .sheet {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -368,84 +456,102 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 #starter { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 10px; }
 #starter select, #starter-name { grid-column: 1 / -1; }
 
-#help {
-  position: fixed;
-  top: calc(var(--top) + 6px);
-  right: 8px;
-  z-index: 8;
-  display: grid;
-  gap: 5px;
-  margin: 0;
-  padding: 12px 14px;
-  font-size: 12.5px;
-}
-
-#help div { display: grid; grid-template-columns: 140px auto; gap: 12px; }
-#help dt { color: var(--ink); }
-#help dd { margin: 0; color: var(--muted); }
-
 #picker, #settings { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: var(--scrim); }
 .sheet { display: flex; flex-direction: column; width: min(560px, 90vw); height: min(620px, 80vh); }
-.sheet h2 { flex: none; padding: 16px 16px 10px; }
-.sheet input { width: auto; margin: 0 16px 10px; }
-.sheet .note { flex: 1; margin: 0; }
+#picker h2 { flex: none; padding: 16px 16px 10px; }
+#picker input { width: auto; margin: 0 16px 10px; }
+#picker .note { flex: 1; margin: 0; }
 
-/* Appearance */
+/* Settings: sections on the left, the chosen one on the right, each choice a
+   row with what it does on the left and the control on the right. Spacing
+   keeps to a 4 px grid: rows 72 tall, controls 36, groups 32 apart. */
 
-#settings-sheet { width: min(480px, 92vw); height: auto; max-height: 86vh; }
-#settings-sheet header { display: flex; align-items: center; padding: 14px 10px 0 16px; }
-#settings-sheet h2 { flex: 1; padding: 0; }
-.settings { overflow-y: auto; padding: 0 16px 18px; }
-.settings h3 { margin: 18px 0 8px; }
-.settings input:not([type="checkbox"]) { width: 100%; margin: 0; }
-.settings .font-choice + .note { margin-top: 6px; }
-.settings .note { margin: 6px 0 0; }
-.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+#settings-sheet { flex-direction: row; width: min(880px, 94vw); height: min(660px, 90vh); overflow: hidden; border-radius: 12px; }
+#settings-nav { display: flex; flex: none; flex-direction: column; gap: 2px; width: 216px; padding: 0 12px 16px; border-right: 1px solid var(--line); background: var(--canvas); }
+#settings-nav h2 { flex: none; padding: 24px 10px 20px; font-size: calc(19px * var(--display-size)); }
+#settings-nav button { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--muted); text-align: left; }
+#settings-nav button:hover { background: var(--field); color: var(--ink); }
+#settings-nav button.on { background: var(--raised); color: var(--ink); font-weight: 500; }
+#settings-nav button svg { width: 17px; height: 17px; }
+#settings-nav button.on svg { color: var(--accent); }
+
+.settings { flex: 1; min-width: 0; overflow-y: auto; padding: 0 40px 40px; }
+.settings > header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; margin: 0 -8px 0 0; padding: 22px 0 12px; background: var(--surface); }
+.settings > header h2 { padding: 0; font-size: calc(22px * var(--display-size)); }
+.settings section { display: grid; }
+.settings h3 { margin: 32px 0 12px; font-size: 12px; letter-spacing: 0.02em; }
+.settings section > h3:first-child { margin-top: 12px; }
+.settings h4 { margin: 0; font-size: 14px; font-weight: 500; }
+.settings p { margin: 16px 0 0; line-height: 1.6; }
+.settings .note { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; }
+
+.field { display: flex; align-items: center; justify-content: space-between; gap: 40px; min-height: 72px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.field > div:first-child { min-width: 0; max-width: 340px; }
+.settings section > .field:first-child { border-top: 0; }
+.field .font-choice { flex: none; width: 260px; }
+.field input[type="number"] { flex: none; width: 96px; height: 36px; margin: 0; border-radius: 8px; text-align: center; }
+
+.keys { display: grid; margin: 0; }
+.keys div { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 48px; border-bottom: 1px solid var(--line); }
+.keys dt { font-size: 13.5px; }
+.keys dd { display: flex; gap: 6px; margin: 0; color: var(--muted); font-size: 13px; }
+.keys dd.text { -webkit-user-select: text; user-select: text; }
+.settings .lead { margin: 12px 0 0; }
+.keys dd .keycap { min-width: 64px; height: 30px; padding: 0 10px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 7px; background: var(--field); color: var(--ink); font: 500 12.5px var(--font-ui); }
+.keys dd .keycap:hover { border-color: var(--accent-line); }
+.keys dd .keycap.recording { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
+.keys dd .reset { height: 30px; padding: 0 8px; border: 0; background: none; color: var(--muted); font-size: 12.5px; }
+.keys dd .reset:hover { color: var(--accent); }
+#key-note:not(:empty) { margin-top: 12px; color: var(--danger); }
+kbd { display: inline-block; min-width: 28px; padding: 3px 8px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: var(--field); color: var(--ink); font: 500 12px/1.4 var(--font-ui); text-align: center; }
+.about { display: flex; align-items: center; gap: 18px; margin-top: 16px; }
+.about img { width: 72px; height: 72px; border-radius: 16px; }
+.about h4 { font: 500 calc(24px * var(--display-size)) var(--font-display); }
+.about + p { margin: 24px 0 8px; }
+
+.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 8px; }
 
 .theme-card {
   display: grid;
-  gap: 1px;
-  padding: 6px 6px 8px;
+  gap: 2px;
+  padding: 8px 8px 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   background: none;
   text-align: left;
 }
 
 .theme-card:hover { border-color: var(--accent-line); }
 .theme-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.theme-card .name { padding: 6px 2px 0; font-weight: 500; }
-.theme-card .note { margin: 0 2px; font-size: 11.5px; }
+.theme-card .name { padding: 10px 4px 0; font-size: 14px; font-weight: 500; }
+.theme-card .note { margin: 0 4px; font-size: 12px; }
 
 /* A theme in small: its map with a few domains and a focus ring, beside a plate. */
-.swatch { position: relative; display: block; height: 62px; overflow: hidden; border-radius: 5px; background: var(--a); }
+.swatch { position: relative; display: block; height: 96px; overflow: hidden; border-radius: 7px; background: var(--a); }
 .swatch i { position: absolute; inset: 0 auto 0 0; width: 26%; background: var(--b); }
-.swatch b { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
-.swatch b:nth-of-type(1) { top: 26%; left: 50%; }
-.swatch b:nth-of-type(2) { top: 56%; left: 74%; width: 5px; height: 5px; opacity: 0.8; }
-.swatch b:nth-of-type(3) { top: 70%; left: 56%; width: 4px; height: 4px; opacity: 0.55; }
-.swatch u { position: absolute; top: calc(26% - 5px); left: calc(50% - 5px); width: 17px; height: 17px; border: 1px solid var(--d); border-radius: 50%; }
+.swatch b { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.swatch b:nth-of-type(1) { top: 28%; left: 52%; }
+.swatch b:nth-of-type(2) { top: 54%; left: 76%; width: 6px; height: 6px; opacity: 0.8; }
+.swatch b:nth-of-type(3) { top: 70%; left: 58%; width: 5px; height: 5px; opacity: 0.55; }
+.swatch u { position: absolute; top: calc(28% - 6px); left: calc(52% - 6px); width: 20px; height: 20px; border: 1px solid var(--d); border-radius: 50%; }
 
-.segmented { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: var(--field); }
-.segmented button { height: 26px; padding: 0 16px; border: 0; border-radius: 5px; background: none; color: var(--muted); }
+.segmented { display: inline-flex; flex: none; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--field); }
+.segmented button { height: 30px; padding: 0 18px; border: 0; border-radius: 6px; background: none; color: var(--muted); }
 .segmented button:hover { color: var(--ink); }
 .segmented button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.14); }
 /* A theme with one mode keeps to it, and the choice waits for another theme. */
 .segmented.fixed { opacity: 0.5; }
 
-.pair { display: flex; gap: 16px; margin-top: 8px; }
-.pair label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
-.settings .pair input { width: 72px; }
 /* A font menu: the choice on a button, and the options in a list below it. */
 .font-choice {
   display: block;
   width: 100%;
-  height: 32px;
-  padding: 0 30px 0 10px;
+  height: 36px;
+  padding: 0 32px 0 12px;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--field) no-repeat right 10px center / 10px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  border-radius: 8px;
+  background: var(--field) no-repeat right 12px center / 10px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -466,9 +572,9 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
   box-shadow: var(--shadow);
 }
 
-.menu input { flex: none; width: auto; margin: 2px 2px 4px; }
+.menu input { flex: none; width: auto; height: 32px; margin: 2px 2px 6px; }
 .menu ul { flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
-.menu li { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 26px; border-radius: 5px; cursor: pointer; }
+.menu li { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 10px 0 28px; border-radius: 6px; cursor: pointer; }
 .menu li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu li small { flex: none; padding: 0 6px; border-radius: 4px; background: var(--accent-wash); color: var(--accent); font: 500 11px var(--font-ui); }
 .menu li.active { background: var(--field); }
@@ -477,7 +583,7 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 .menu li { position: relative; }
 .menu li[aria-selected="true"]::before { position: absolute; left: 9px; color: var(--accent); content: "✓"; font: 500 12px var(--font-ui); }
 
-#font-preview { margin: 10px 0 0; padding: 10px 12px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; white-space: pre; -webkit-user-select: text; user-select: text; }
+#font-preview { margin: 0; padding: 16px 18px; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; white-space: pre; -webkit-user-select: text; user-select: text; }
 
 #ghost {
   position: fixed;

@@ -2,17 +2,18 @@
 // hands each snapshot to the map and fills the lists around it.
 
 import { MapView } from "./map.js";
+import { actionFor, label as labelKeys, setMoved } from "./keys.js";
 import { closeSettings, openSettings, setupSettings } from "./settings.js";
 import { apply, loadThemes, look, watch } from "./theme.js";
 
 const tauri = window.__TAURI__;
 // The narrowest, usual and widest a part beside the map can be dragged.
-const WIDTHS = { list: [180, 248, 520], panel: [260, 320, 560] };
+const WIDTHS = { list: [200, 264, 520], panel: [260, 320, 560] };
 const QUIET = 3000; // Milliseconds without output before an open session counts as quiet.
 const LINGER = 2000; // A pane whose process ends sooner stays up, so what it printed can be read.
 const SETTLE = 5000; // Milliseconds a new pane spends drawing itself before its output counts as news.
 const CLICK = 220; // Milliseconds a click on a session waits, in case it is the first of a double click.
-const RECENT = 40; // Sessions the list shows before a search narrows it.
+const SHOWN = 8; // Sessions a domain in the list shows before it offers the rest.
 const $ = (id) => document.getElementById(id);
 // Icons are drawn here, sixteen units square, so a button needs no word.
 const ICONS = {
@@ -22,6 +23,13 @@ const ICONS = {
   down: "M2.5 3.5h11v9h-11zM2.5 8h11",
   again: "M12.4 8.6a4.5 4.5 0 1 1-1.2-3.7M12.6 2.6v2.7H9.9",
   locate: "M8 14s4-3.6 4-7a4 4 0 0 0-8 0c0 3.4 4 7 4 7zM8 8.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z",
+  add: "M8 3.5v9M3.5 8h9",
+  fold: "M4.5 6.2l3.5 3.6 3.5-3.6",
+  unfoldAll: "M5 6l3-3 3 3M5 10l3 3 3-3",
+  folder: "M2 4.6c0-.6.4-1.1 1-1.1h3.2l1.5 1.6H13c.6 0 1 .4 1 1v6.3c0 .6-.4 1.1-1 1.1H3c-.6 0-1-.5-1-1.1z",
+  folderOpen: "M2 12.4V4.6c0-.6.4-1.1 1-1.1h3.2l1.5 1.6H12c.6 0 1 .4 1 1v1.1M2 12.4l1.6-4.7c.1-.4.5-.7 1-.7h9.1c.5 0 .8.5.7 1l-1.3 4.4H2z",
+  session: "M3 4.5c0-.6.4-1 1-1h8c.6 0 1 .4 1 1v5.5c0 .6-.4 1-1 1H7.2L4.6 13v-2H4c-.6 0-1-.4-1-1z",
+  foldAll: "M5 3l3 3 3-3M5 13l3-3 3 3",
 };
 
 function icon(name) {
@@ -43,6 +51,11 @@ export const state = {
   nested: false, // Whether the panel includes sessions of subdomains.
   query: "",
   picked: new Set(), // Keys of the sessions ticked in the history picker.
+  // Domains unfolded in the list, each by its path from a root domain, such as
+  // "3/7", since a domain with two parents appears under both.
+  unfolded: new Set(),
+  more: new Set(), // Paths whose domain shows every one of its sessions.
+  folded: new Set(), // Parts of the list folded away: "open", "tree".
 };
 
 let drawn = ""; // The snapshot on screen, as the text it arrived in.
@@ -104,7 +117,7 @@ function ago(seconds) {
   if (elapsed < 3600) return `${Math.max(1, Math.round(elapsed / 60))}m`;
   if (elapsed < 86400) return `${Math.round(elapsed / 3600)}h`;
   if (elapsed < 30 * 86400) return `${Math.round(elapsed / 86400)}d`;
-  return new Date(seconds * 1000).toLocaleDateString();
+  return new Date(seconds * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function el(tag, props = {}, ...children) {
@@ -159,7 +172,6 @@ export function show(view) {
   $("show-shell").classList.toggle("on", shell);
   document.body.classList.toggle("on-map", !shell);
   renderPanel();
-  where();
   if (!shell) document.activeElement?.blur();
   arrange();
 }
@@ -219,17 +231,11 @@ dragging($("panel-edge"), (event) => setWidth("panel", innerWidth - event.client
 $("list-edge").addEventListener("dblclick", () => setWidth("list"));
 $("panel-edge").addEventListener("dblclick", () => setWidth("panel"));
 
-/** Names what fills the window in the middle of the top bar: the focused domain, or the active pane. */
-function where() {
-  const text = state.view === "shell" ? (active ? paneName(active) : "") : (domainById(state.focus)?.name ?? "");
-  $("where").textContent = text;
-}
-
 function focus(id) {
   Object.assign(state, { focus: id, nested: false });
   map.mark({ focus: id });
   renderPanel();
-  where();
+  renderList();
   const domain = domainById(id);
   if (domain) map.bring(domain.x, domain.y, (freeLeft() + freeRight()) / 2, innerHeight / 2);
 }
@@ -239,6 +245,7 @@ function focus(id) {
 /** Draws a new snapshot. */
 function render() {
   const { domains, links } = state.snapshot;
+  setMoved(state.snapshot.shortcuts ?? {});
   if (state.focus !== null && !domainById(state.focus)) state.focus = null;
   map.chart(domains, links);
   map.mark({ focus: state.focus });
@@ -249,7 +256,6 @@ function render() {
   for (const pane of panes) {
     if (!pane.title.querySelector("input")) pane.title.textContent = paneName(pane);
   }
-  where();
 }
 
 /** What a pane is called: its session's title, or the name given to its shell. */
@@ -266,7 +272,6 @@ function renamer(pane, session) {
     pane.name = title;
     pane.title.textContent = title;
     renderList();
-    where();
     remember();
   };
 }
@@ -320,54 +325,197 @@ function chips(session, except) {
   return el("div", { className: "chips" }, ...names.map((name) => el("span", { className: "chip plain", textContent: name })));
 }
 
-// The session list
+// The session list: the open sessions, then every domain as a folder holding
+// its subdomains and then its own sessions, most recent first.
 
-function listRow(title, sub, pane, session) {
-  const dot = el("span", { className: "dot" });
-  const apply = renamer(pane, sessionByKey(keyOf(session)));
-  const text = el("span", { className: "title", textContent: title, title: apply ? `${title}\nDouble-click to rename` : title });
+/** One row of the list, `depth` steps in. */
+function node(className, depth, ...children) {
+  const row = el("li", { className: `node ${className}`, tabIndex: 0 }, ...children);
+  row.style.setProperty("--depth", depth);
+  return row;
+}
+
+/**
+ * A row for a session, or for a shell, given as a stand-in with only a title
+ * and a folder. `pane` is where it is open, if it is. Its one tool closes the
+ * pane in the open list, and leaves `domain` in the tree.
+ */
+function sessionNode(session, pane, depth, domain) {
+  // A chat mark, which a running session's state dot takes the place of.
+  const dot = el("span", { className: "dot idle" });
+  pane?.dots.push(dot);
+  const kind = el("span", { className: "kind" }, icon("session"), dot);
+  const apply = renamer(pane, session.id ? session : undefined);
+  const title = el("span", { className: "title", textContent: session.title });
+  const meta = el("span", { className: "meta", textContent: session.updated ? ago(session.updated) : "" });
   const tools = el("span", { className: "tools" });
-  const row = el("li", { className: "entry", tabIndex: 0, title: "Drag into the terminal to open it there" }, dot, text, el("span", { className: "sub", textContent: sub }), tools);
+  // In the tree, an empty place where a domain's arrow would be keeps it in line with its sibling domains.
+  const slot = domain === undefined ? null : el("span", { className: "mark" });
+  const row = node("leaf", depth, slot, kind, title, meta, tools);
+  row.title = [session.title, session.folder, apply && "Double-click to rename"].filter(Boolean).join("\n");
+  if (domain === undefined) tools.append(button("close", icon("close"), "Stop and close", () => closePane(pane)));
+  else tools.append(button("close", icon("close"), "Remove from this domain", () => run("unassign", { domain, session: refOf(session) })));
+  row.classList.toggle("current", Boolean(pane) && state.view === "shell" && shown.includes(pane));
   const open = () => (pane ? showPane(pane) : openSession(session));
-  if (pane) {
-    pane.dot = dot;
-    tools.append(button("close", icon("close"), "Stop and close", () => closePane(pane)));
-    row.classList.toggle("current", state.view === "shell" && shown.includes(pane));
-  }
-  clicks(row, open, () => rename(text, apply));
+  clicks(row, open, () => rename(title, apply));
   carriable(row, () => (pane ? { pane, session: sessionByKey(pane.key) } : { session }));
   row.addEventListener("keydown", (event) => event.target === row && event.key === "Enter" && open());
   return row;
 }
 
-function renderList() {
-  const { sessions } = state.snapshot;
-  const describe = (session) => {
-    const domain = domainById(session.domains[0])?.name;
-    return [domain, ago(session.updated)].filter(Boolean).join(", ");
+/** How the domains nest, and each one's own sessions, most recent first. */
+function treeOf() {
+  const { domains, links, sessions } = state.snapshot;
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  const kids = new Map(domains.map((domain) => [domain.id, []]));
+  const below = new Set();
+  for (const [parent, child] of links) {
+    kids.get(parent)?.push(domainById(child));
+    below.add(child);
+  }
+  for (const list of kids.values()) list.sort(byName);
+  const own = new Map(domains.map((domain) => [domain.id, []]));
+  for (const session of sessions) for (const id of session.domains) own.get(id)?.push(session);
+  for (const list of own.values()) list.sort((a, b) => b.updated - a.updated);
+  return { roots: domains.filter((domain) => !below.has(domain.id)).sort(byName), kids, own };
+}
+
+/** The path of every domain that holds something to unfold. */
+function foldable({ roots, kids, own } = treeOf()) {
+  const paths = [];
+  const walk = (domain, path) => {
+    if (kids.get(domain.id).length || own.get(domain.id).length) paths.push(path);
+    for (const child of kids.get(domain.id)) walk(child, `${path}/${child.id}`);
   };
+  for (const root of roots) walk(root, `${root.id}`);
+  return paths;
+}
+
+/** Unfolds or folds the domains at `paths`, and keeps the choice for the next run. */
+function unfold(paths, open) {
+  for (const path of paths) open ? state.unfolded.add(path) : state.unfolded.delete(path);
+  keep("tree", JSON.stringify([...state.unfolded]));
+  renderList();
+}
+
+/** The rows for a domain and, while it is unfolded, for what it holds. A search unfolds every domain and keeps what matches. */
+function domainRows(tree, domain, depth, path) {
+  const { kids, own } = tree;
+  const searching = Boolean(state.query.trim());
+  const inner = kids.get(domain.id).flatMap((child) => domainRows(tree, child, depth + 1, `${path}/${child.id}`));
+  const sessions = own.get(domain.id).filter((session) => matches(session, state.query));
+  const named = domain.name.toLowerCase().includes(state.query.trim().toLowerCase());
+  if (searching && !named && !inner.length && !sessions.length) return [];
+
+  const holds = kids.get(domain.id).length + own.get(domain.id).length > 0;
+  const open = searching || state.unfolded.has(path);
+  const mark = el("span", { className: "mark" }, holds ? icon("fold") : null);
+  const kind = el("span", { className: "kind" }, icon(open && holds ? "folderOpen" : "folder"));
+  const title = el("span", { className: "title", textContent: domain.name });
+  const count = domain.sessions.length;
+  const meta = el("span", { className: "meta", textContent: count ? String(count) : "" });
+  const tools = el(
+    "span",
+    { className: "tools" },
+    button("", icon("locate"), "Show on the map", () => {
+      show("map");
+      focus(domain.id);
+    }),
+    button("", icon("add"), "New session here", () => openStarter(row, domain.id)),
+  );
+  const row = node(`domain${open ? "" : " folded"}${count ? "" : " empty"}`, depth, mark, kind, title, meta, tools);
+  Object.assign(row.dataset, { domain: domain.id });
+  row.setAttribute("role", "treeitem");
+  if (holds) row.setAttribute("aria-expanded", String(open));
+  row.title = `${domain.name}\nDouble-click to rename`;
+  row.classList.toggle("current", state.view === "map" && state.focus === domain.id);
+  const toggle = () => holds && !searching && unfold([path], !open);
+  row.addEventListener("click", (event) => !event.target.closest("button, input") && toggle());
+  row.addEventListener("dblclick", (event) => {
+    if (event.target.closest("button, input")) return;
+    rename(title, (name) => run("rename_domain", { domain: domain.id, name }));
+  });
+  row.addEventListener("keydown", (event) => {
+    if (event.target !== row) return;
+    if (event.key === "Enter" || (event.key === "ArrowRight" && !open) || (event.key === "ArrowLeft" && open)) toggle();
+  });
+  if (!open) return [row];
+
+  const all = searching || state.more.has(path) || sessions.length <= SHOWN + 1;
+  const leaves = (all ? sessions : sessions.slice(0, SHOWN)).map((session) => {
+    const pane = panes.find((item) => item.key === keyOf(session));
+    return sessionNode(session, pane, depth + 1, domain.id);
+  });
+  if (!all) {
+    const more = node("more", depth + 1, el("span", { className: "mark" }), el("span", { className: "kind" }), el("span", { className: "title", textContent: `${sessions.length - SHOWN} more` }));
+    more.addEventListener("click", () => {
+      state.more.add(path);
+      renderList();
+    });
+    leaves.push(more);
+  }
+  return [row, ...inner, ...leaves];
+}
+
+function renderList() {
+  const { domains } = state.snapshot;
+  for (const pane of panes) pane.dots = [];
   const open = panes.flatMap((pane) => {
     const session = sessionByKey(pane.key) ?? { title: paneName(pane), folder: pane.folder, domains: [] };
-    if (!matches(session, state.query)) return [];
-    return [listRow(session.title, session.updated ? describe(session) : (pane.folder ?? ""), pane, session)];
+    return matches(session, state.query) ? [sessionNode(session, pane, 0)] : [];
   });
-  const running = new Set(panes.map((pane) => pane.key));
-  let recent = sessions.filter(
-    (session) => session.domains.length && !running.has(keyOf(session)) && matches(session, state.query),
-  );
-  if (!state.query.trim()) recent = recent.slice(0, RECENT);
+  const tree = treeOf();
+  const rows = tree.roots.flatMap((root) => domainRows(tree, root, 0, `${root.id}`));
 
   $("open-list").replaceChildren(...open);
-  $("recent-list").replaceChildren(...recent.map((session) => listRow(session.title, describe(session), null, session)));
-  $("open-head").hidden = !open.length;
-  $("recent-head").hidden = !recent.length;
-  let note = "";
-  if (!open.length && !recent.length) {
-    note = state.query.trim() ? "No session matches." : "Sessions assigned to a domain appear here.";
+  $("tree").replaceChildren(...rows);
+  // A folded part keeps its heading, with how much it holds.
+  for (const [section, list, count] of [["open", "open-list", open.length], ["tree", "tree", domains.length]]) {
+    const folded = state.folded.has(section);
+    const head = document.querySelector(`[data-section="${section}"]`);
+    $(list).hidden = folded;
+    head.setAttribute("aria-expanded", String(!folded));
+    head.parentElement.classList.toggle("folded", folded);
+    head.querySelector("small").textContent = folded && count ? String(count) : "";
   }
+  $("open-head").hidden = !open.length;
+  $("tree-head").hidden = !rows.length && !!state.query.trim();
+  let note = "";
+  if (!domains.length) note = "Double-click the map, or press +, to add a domain.";
+  else if (!open.length && !rows.length) note = "Nothing matches.";
   $("list-note").textContent = note;
+
+  // The button unfolds every domain, or folds them all once every one is unfolded.
+  const paths = foldable(tree);
+  const every = paths.length > 0 && paths.every((path) => state.unfolded.has(path));
+  const label = every ? "Fold every domain" : "Unfold every domain";
+  $("fold-tree").replaceChildren(icon(every ? "foldAll" : "unfoldAll"));
+  Object.assign($("fold-tree"), { title: label });
+  $("fold-tree").setAttribute("aria-label", label);
   tick();
 }
+
+for (const head of document.querySelectorAll("#list h3 .fold")) {
+  head.addEventListener("click", () => {
+    const section = head.dataset.section;
+    if (!state.folded.delete(section)) state.folded.add(section);
+    keep("sections", JSON.stringify([...state.folded]));
+    renderList();
+  });
+}
+
+$("fold-tree").addEventListener("click", () => {
+  const paths = foldable();
+  const every = paths.every((path) => state.unfolded.has(path));
+  state.more.clear();
+  unfold(every ? [...state.unfolded] : paths, !every);
+});
+
+$("add-root").addEventListener("click", () => {
+  const box = $("add-root").getBoundingClientRect();
+  const position = map.toWorld((freeLeft() + freeRight()) / 2, innerHeight / 2);
+  openNamer(box.right + 8, box.top - 4, (text) => addDomain(text, { position }));
+});
 
 /** Whether a pane is where the person can see it. */
 const seen = (pane) => state.view === "shell" && shown.includes(pane) && document.hasFocus();
@@ -382,7 +530,7 @@ function tick() {
     const quiet = now - pane.heard >= QUIET;
     const mood = pane.ended ? "ended" : !quiet ? "active" : pane.unseen ? "ready" : "quiet";
     ready ||= mood === "ready";
-    if (pane.dot) pane.dot.className = `dot ${mood}`;
+    for (const dot of pane.dots ?? []) dot.className = `dot ${mood}`;
     if (mood === "active") live.push(...(sessionByKey(pane.key)?.domains ?? []));
   }
   $("show-shell").classList.toggle("ready", ready);
@@ -533,11 +681,9 @@ $("starter").addEventListener("submit", (event) => {
 
 document.addEventListener("pointerdown", (event) => {
   if (!event.target.closest("#starter") && event.target !== openStarter.anchor) closeStarter();
-  if (!event.target.closest("#help, #show-help")) $("help").hidden = true;
 });
 
-$("show-help").addEventListener("click", () => ($("help").hidden = !$("help").hidden));
-$("show-settings").addEventListener("click", openSettings);
+$("show-settings").addEventListener("click", () => openSettings());
 
 // Adding sessions from the agent's history to the focused domain
 
@@ -754,7 +900,9 @@ const EDGE = 0.28; // The share of a pane, from each edge, where a drop splits i
 /** Lets `node` be carried. `what` says what it carries: `{ session }`, `{ pane }`, and `assignOnly` for a domain's own list. */
 function carriable(node, what) {
   node.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || event.target.closest("button, input")) return;
+    // The empty part of a header along the top drags the window instead. As
+    // in Tauri, only the element pressed itself counts, not those around it.
+    if (event.button !== 0 || event.target.closest("button, input") || event.target.hasAttribute("data-tauri-drag-region")) return;
     carry = { what: what(), x: event.clientX, y: event.clientY, moved: false, drop: null };
   });
 }
@@ -764,12 +912,14 @@ const inside = (box, x, y) => x >= box.left && x < box.right && y >= box.top && 
 /** Where a carry would land at a screen point, or null where it cannot. */
 function dropAt(x, y) {
   const { pane, session, assignOnly } = carry.what;
+  // A domain in the list takes a session in either view.
+  const row = session && document.elementFromPoint(x, y)?.closest("#tree .node.domain");
+  if (row) return { domain: Number(row.dataset.domain), row };
   if (state.view === "map") {
     const domain = session ? domainUnder(x, y) : null;
     if (domain !== null) return { domain };
     if (assignOnly || document.elementFromPoint(x, y) !== $("map")) return null;
-    const top = $("top").getBoundingClientRect().bottom;
-    return { rect: { left: freeLeft(), top, right: freeRight(), bottom: innerHeight } };
+    return { rect: { left: freeLeft(), top: 0, right: freeRight(), bottom: innerHeight } };
   }
   const box = $("shell").getBoundingClientRect();
   if (assignOnly || !inside(box, x, y)) return null;
@@ -798,6 +948,8 @@ function outline(drop) {
   const appearing = box.hidden;
   box.hidden = !drop?.rect;
   map.mark({ drop: drop?.domain ?? null });
+  for (const row of document.querySelectorAll("#tree .target")) row.classList.toggle("target", row === drop?.row);
+  drop?.row?.classList.add("target");
   if (!drop?.rect) return;
   // It glides between spots, but appears where it is.
   box.style.transition = appearing ? "none" : "";
@@ -968,10 +1120,19 @@ function arrange() {
   }
   $("shell-empty").hidden = shown.length > 0;
   if (state.view === "shell") {
+    // The panes along the top stand in for a title bar: the empty part of
+    // their headers drags the window, and the one at the left makes room for
+    // the window's buttons while the list is hidden.
+    const edge = $("shell").getBoundingClientRect();
+    for (const pane of shown) {
+      const box = pane.node.getBoundingClientRect();
+      const top = box.top - edge.top < 2;
+      pane.gap.toggleAttribute("data-tauri-drag-region", top);
+      pane.node.classList.toggle("corner", top && box.left - edge.left < 2);
+    }
     for (const pane of shown) pane.fit.fit();
     active?.term.focus();
   }
-  where();
   renderList();
   remember();
 }
@@ -1112,14 +1273,17 @@ function addPane(name, folder, key) {
   const title = el("span", { className: "title", textContent: name, title: "Double-click to rename" });
   const sub = el("span", { className: "sub", textContent: folder ?? "" });
   const body = el("div", { className: "term" });
-  const pane = { id: null, key, folder, title, ended: false, heard: Date.now(), sent: Promise.resolve() };
+  const gap = el("span", { className: "gap" });
+  const pane = { id: null, key, folder, title, gap, dots: [], ended: false, heard: Date.now(), sent: Promise.resolve() };
   pane.locate = button("", icon("locate"), "Show on the map", () => locate(pane));
   pane.again = button("", icon("again"), "Run again", () => restart(pane));
-  const right = button("", icon("right"), "Split right with a shell (⌘D)", () => split("row", pane));
-  const down = button("", icon("down"), "Split down with a shell (⇧⌘D)", () => split("column", pane));
+  const right = button("", icon("right"), "Split right with a shell", () => split("row", pane));
+  const down = button("", icon("down"), "Split down with a shell", () => split("column", pane));
+  right.dataset.action = "split_right";
+  down.dataset.action = "split_down";
   pane.hide = button("", icon("hide"), "Hide, and keep running", () => hidePane(pane));
   const close = button("close", icon("close"), "Stop and close", () => closePane(pane));
-  const head = el("header", {}, title, sub, pane.locate, pane.again, right, down, pane.hide, close);
+  const head = el("header", {}, title, sub, gap, pane.locate, pane.again, right, down, pane.hide, close);
   title.addEventListener("dblclick", () => rename(title, renamer(pane)));
   carriable(head, () => ({ pane, session: sessionByKey(pane.key) }));
   pane.node = el("div", { className: "pane" }, head, body);
@@ -1175,6 +1339,7 @@ function addPane(name, folder, key) {
     for (const other of panes) other.node.classList.toggle("active", other === pane && shown.length > 1);
   });
   panes.push(pane);
+  labelKeys();
   return pane;
 }
 
@@ -1253,15 +1418,16 @@ function locate(pane) {
 
 // Keys
 
+/** What each shortcut does. `keys.js` says which key each is on. */
 const SHORTCUTS = {
-  1: () => show("map"),
-  2: () => show("shell"),
-  0: () => fit(),
-  b: () => showList(!state.listed),
-  d: () => split("row"),
-  D: () => split("column"),
-  ",": () => ($("settings").hidden ? openSettings() : closeSettings()),
-  k: () => {
+  map: () => show("map"),
+  shell: () => show("shell"),
+  fit: () => fit(),
+  list: () => showList(!state.listed),
+  split_right: () => split("row"),
+  split_down: () => split("column"),
+  settings: () => ($("settings").hidden ? openSettings() : closeSettings()),
+  search: () => {
     showList(true);
     $("list-search").focus();
     $("list-search").select();
@@ -1269,13 +1435,7 @@ const SHORTCUTS = {
 };
 
 /** What a key press asks of Deck, if anything. A terminal lets these keys through. */
-function shortcut(event) {
-  const key = event.key.toLowerCase();
-  if (!(key in SHORTCUTS)) return null;
-  if (event.metaKey) return SHORTCUTS[key === "d" && event.shiftKey ? "D" : key];
-  // Control with a letter belongs to the terminal, so elsewhere than macOS the letters take Shift too.
-  return event.ctrlKey && (event.shiftKey || key < "a") ? SHORTCUTS[key] : null;
-}
+const shortcut = (event) => SHORTCUTS[actionFor(event)] ?? null;
 
 document.addEventListener(
   "keydown",
@@ -1294,7 +1454,6 @@ document.addEventListener("keydown", (event) => {
   else if (!$("picker").hidden) closePicker();
   else if (!$("starter").hidden) closeStarter();
   else if (!$("namer").hidden) closeNamer();
-  else if (!$("help").hidden) $("help").hidden = true;
   // Inside a terminal the key belongs to the agent.
   else if (document.activeElement.closest(".pane")) return;
   else if (document.activeElement !== document.body) document.activeElement.blur();
@@ -1336,13 +1495,21 @@ watch(({ painter, terminal, mode }) => {
   }
   shownMode = mode;
 });
-setupSettings(
-  (appearance) => run("set_appearance", { appearance }),
-  () => send("fonts", {}),
-);
+setupSettings({
+  appearance: (appearance) => run("set_appearance", { appearance }),
+  shortcuts: (shortcuts) => run("set_shortcuts", { shortcuts }),
+  fonts: () => send("fonts", {}),
+});
 setWidth("list", Number(kept("list-width")));
 setWidth("panel", Number(kept("panel-width")));
 showList(kept("list") !== "hidden");
+try {
+  state.unfolded = new Set(JSON.parse(kept("tree")) ?? []);
+  state.folded = new Set(JSON.parse(kept("sections")) ?? []);
+} catch {
+  // A list kept by an older run starts as it is.
+}
+labelKeys();
 show("map");
 await loadThemes();
 if ((await run("snapshot")) && map.fresh) fit();

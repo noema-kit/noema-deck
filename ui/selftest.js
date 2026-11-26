@@ -35,6 +35,24 @@ const row = (list, title) =>
   [...$(list).children].find((node) => node.querySelector(".title")?.textContent === title);
 const snapshot = () => invoke("map", { request: { command: "snapshot" } });
 
+/** Unfolds every domain in the list, as its button does. */
+function unfoldTree() {
+  if ($("fold-tree").title.startsWith("Unfold")) $("fold-tree").click();
+}
+
+/** A session's row in the domain tree, and the sessions the tree shows, each once. */
+function leaf(title) {
+  unfoldTree();
+  return [...$("tree").querySelectorAll(".leaf")].find((node) => node.querySelector(".title").textContent === title);
+}
+
+function leaves() {
+  unfoldTree();
+  return [...new Set([...$("tree").querySelectorAll(".leaf .title")].map((node) => node.textContent))];
+}
+
+const treeRow = (title) => [...$("tree").children].find((node) => node.querySelector(".title").textContent === title);
+
 /** Middle of a domain on the map, or of an element on the page. */
 function centre(thing) {
   if (!(thing instanceof Element)) return map.toScreen(thing.x, thing.y);
@@ -98,8 +116,10 @@ async function addRootDomain(text, x, y) {
   await giveName(text);
 }
 
+/** Presses a key, with the code a keyboard gives it, such as `KeyB` or `Digit1`. */
 function key(name, more) {
-  const event = { key: name, bubbles: true, cancelable: true, ...more };
+  const code = /^\d$/.test(name) ? `Digit${name}` : /^[a-z]$/i.test(name) ? `Key${name.toUpperCase()}` : name;
+  const event = { key: name, code, bubbles: true, cancelable: true, ...more };
   (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", event));
 }
 
@@ -166,7 +186,7 @@ const steps = [
     $("picker").querySelector("form").requestSubmit();
     await until("the sessions in Memory", () => count("Memory") === 2 && $("picker").hidden);
     expect(count("System") === 2 && count("AI") === 2, "the parents did not count them");
-    expect(titles("recent-list").sort().join() === "Alpha,Beta", `the list showed ${titles("recent-list")}`);
+    expect(leaves().sort().join() === "Alpha,Beta", `the list showed ${leaves()}`);
   }],
   ["the panel shows a domain's sessions and its parents", async () => {
     expect(titles("domain-sessions").sort().join() === "Alpha,Beta", `sessions were ${titles("domain-sessions")}`);
@@ -183,11 +203,24 @@ const steps = [
     await giveName("CXL");
     expect(links() === 3, `expected 3 links, found ${links()}`);
   }],
+  ["the list folds its domains, and a session dropped on one there joins it", async () => {
+    unfoldTree();
+    const shown = () => [...$("tree").children].map((node) => node.querySelector(".title").textContent);
+    expect(shown().includes("CXL") && shown().includes("Alpha"), `the unfolded list showed ${shown()}`);
+    $("fold-tree").click();
+    expect(shown().sort().join() === "AI,System", `the folded list showed ${shown()}`);
+    unfoldTree();
+    await carryTo(leaf("Alpha"), centre(treeRow("CXL")));
+    await until("Alpha in CXL", () => count("CXL") === 1);
+    expect(count("Memory") === 2, "Memory counted Alpha twice");
+    await sleep(300); // A click just after a carry ends opens nothing.
+  }],
   ["opening a session fills the window with its terminal, and typing reaches the agent", async (hold) => {
-    row("recent-list", "Alpha").click();
+    leaf("Alpha").click();
     await until("the agent's first line", () => terminal().includes("fake agent --resume"));
-    const [box, top] = [$("shell").getBoundingClientRect(), $("top").getBoundingClientRect()];
-    expect(box.top === top.bottom && box.bottom === innerHeight && box.right === innerWidth, "the terminal left a margin");
+    const box = $("shell").getBoundingClientRect();
+    expect(box.top === 0 && box.bottom === innerHeight && box.right === innerWidth, "the terminal left a margin");
+    expect($("top").getBoundingClientRect().height === 0, "the map's strip stayed over the terminal");
     const input = document.querySelector(".pane .xterm-helper-textarea");
     input.focus();
     const typed = { data: "hello\r", inputType: "insertText", bubbles: true };
@@ -204,11 +237,11 @@ const steps = [
     key("b", { metaKey: true });
     expect($("shell").getBoundingClientRect().left === 0, "the list stayed");
     key("b", { metaKey: true });
-    expect($("shell").getBoundingClientRect().left === 248, "the list did not come back");
+    expect($("shell").getBoundingClientRect().left === 264, "the list did not come back");
   }],
   ["a session carried to a pane's right edge opens beside it, and hiding one keeps it running", async () => {
     const alpha = document.querySelector(".pane:not([hidden])").getBoundingClientRect();
-    await carryTo(row("recent-list", "Beta"), [alpha.right - 20, alpha.top + alpha.height / 2]);
+    await carryTo(leaf("Beta"), [alpha.right - 20, alpha.top + alpha.height / 2]);
     await until("two terminals", () => onScreen() === 2);
     await until("both agents", () => screenText(1).includes("fake agent --resume"));
 
@@ -220,7 +253,7 @@ const steps = [
     pointer(divider, "pointerup", [box.left + box.width * 0.3, 300]);
     const share = first.getBoundingClientRect().width / box.width;
     expect(Math.abs(share - 0.3) < 0.02, `the first pane took ${share.toFixed(2)} of the width`);
-    pointer($("list-edge"), "pointerdown", [248, 300]);
+    pointer($("list-edge"), "pointerdown", [264, 300]);
     pointer($("list-edge"), "pointermove", [300, 300]);
     pointer($("list-edge"), "pointerup", [300, 300]);
     expect($("shell").getBoundingClientRect().left === 300, "the list kept its width");
@@ -246,7 +279,7 @@ const steps = [
     expect(!$("panel").hidden, "the domain panel did not come back");
   }],
   ["a shell opens below a session, and its pane closes when the shell exits", async () => {
-    row("recent-list", "Alpha").click();
+    leaf("Alpha").click();
     await until("the agent", () => terminal().includes("fake agent --resume"));
     document.querySelector('.pane [title^="Split down"]').click();
     await until("two terminals", () => onScreen() === 2 && titles("open-list").includes("Shell"));
@@ -338,11 +371,12 @@ const steps = [
     $("toast").querySelector("button").click();
     await until("the old places", () => JSON.stringify(places()) === before);
   }],
-  ["the appearance sheet changes the theme, mode and typeface, and the core keeps them", async () => {
+  ["settings change the theme, mode and typeface, and the core keeps them", async () => {
     const root = document.documentElement;
     const kept = () => state.snapshot.appearance;
+    const page = (name) => $("settings").querySelector(`section[data-page="${name}"]`);
     $("show-settings").click();
-    expect(!$("settings").hidden, "the sheet did not open");
+    expect(!$("settings").hidden && !page("appearance").hidden, "the settings did not open at Appearance");
     const card = (theme) => $("theme-choice").querySelector(`[data-theme="${theme}"]`);
     card("galaxy").click();
     await until("the Galaxy theme", () => root.dataset.theme === "galaxy" && kept().theme === "galaxy");
@@ -354,6 +388,8 @@ const steps = [
     const ground = getComputedStyle(document.body).backgroundColor;
     expect(ground === "rgb(244, 243, 239)", `the page's ground is ${ground}`);
     // Fonts are chosen from those installed, which macOS always has Menlo among.
+    $("settings-nav").querySelector('[data-page="terminal"]').click();
+    expect(page("appearance").hidden && !page("terminal").hidden, "the Terminal page did not show");
     const option = async (name) => {
       $("terminal-font").click();
       return until(`${name} in the menu`, () => [...$("font-list").children].find((row) => row.textContent === name));
@@ -365,17 +401,47 @@ const steps = [
     (await option("Theme default")).click();
     $("mode-choice").querySelector('[data-mode="system"]').click();
     await until("the default look", () => kept().terminal_font === null && kept().mode === "system");
+    $("settings-nav").querySelector('[data-page="about"]').click();
+    await until("the version on the About page", () => /^Version \d+\.\d+\.\d+$/.test($("version").textContent));
     $("close-settings").click();
   }],
+  ["a shortcut moves to another key, the core keeps it, and the list's parts fold away", async () => {
+    $("show-settings").click();
+    $("settings-nav").querySelector('[data-page="shortcuts"]').click();
+    const cap = (label) =>
+      [...$("key-list").querySelectorAll("dt")].find((node) => node.textContent === label).nextElementSibling.querySelector(".keycap");
+    cap("Session list").click();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "d", code: "KeyD", metaKey: true, bubbles: true, cancelable: true }));
+    expect($("key-note").textContent.includes("already"), "a key in use was taken");
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "l", code: "KeyL", metaKey: true, bubbles: true, cancelable: true }));
+    await until("the moved key kept", () => state.snapshot.shortcuts?.list === "mod+KeyL");
+    expect($("toggle-list").title.endsWith("(⌘L)"), `the button's title was ${$("toggle-list").title}`);
+    $("close-settings").click();
+    key("b", { metaKey: true });
+    expect(document.body.classList.contains("listed"), "the old key still hid the list");
+    key("l", { metaKey: true });
+    expect(!document.body.classList.contains("listed"), "the new key did not hide the list");
+    key("l", { metaKey: true });
+    $("show-settings").click();
+    cap("Session list").parentElement.querySelector(".reset").click();
+    await until("the key put back", () => !Object.keys(state.snapshot.shortcuts ?? {}).length);
+    $("close-settings").click();
+
+    document.querySelector('[data-section="tree"]').click();
+    const shown = () => `hidden ${$("tree").hidden}, heading "${$("tree-head").className}", folded ${[...state.folded]}`;
+    expect($("tree").hidden && $("tree-head").classList.contains("folded"), `the domains did not fold: ${shown()}`);
+    document.querySelector('[data-section="tree"]').click();
+    expect(!$("tree").hidden, "the domains did not unfold");
+  }],
   ["a session is renamed by a double click on its row, in the agent's own records", async () => {
-    const title = row("recent-list", "Beta").querySelector(".title");
+    const title = leaf("Beta").querySelector(".title");
     for (const detail of [1, 2]) title.dispatchEvent(new MouseEvent("click", { bubbles: true, detail }));
     title.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     const input = title.querySelector("input");
     expect(input, "no name box appeared");
     input.value = "  Beta   renamed ";
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    await until("the new name", () => titles("recent-list").includes("Beta renamed"));
+    await until("the new name", () => leaves().includes("Beta renamed"));
     await sleep(400);
     expect(!document.querySelector(".pane"), "the double click also opened the session");
     const named = (await snapshot()).sessions.find((session) => session.title === "Beta renamed");

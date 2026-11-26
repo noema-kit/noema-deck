@@ -1,4 +1,4 @@
-//! The typefaces installed on this machine, which the Appearance sheet offers.
+//! The typefaces installed on this machine, which Settings offer.
 //! Deck bundles none of its own.
 
 use std::{collections::BTreeMap, sync::OnceLock};

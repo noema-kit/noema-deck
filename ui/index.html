@@ -18,63 +18,73 @@
     <p>Double-click the map to add one.</p>
   </div>
 
-  <header id="top" data-tauri-drag-region>
-    <button id="toggle-list" type="button" title="Session list (⌘B)" aria-label="Session list">
+  <!-- Beside the window's own buttons, wherever the session list is: the list and the two views. -->
+  <nav id="chrome" aria-label="Views">
+    <button id="toggle-list" type="button" title="Session list" data-action="list" aria-label="Session list">
       <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg>
     </button>
-    <div class="views" role="tablist" aria-label="Views">
-      <button id="show-map" type="button" title="Map (⌘1)" aria-label="Map">
-        <svg viewBox="0 0 16 16"><circle cx="4.5" cy="5" r="1.6"/><circle cx="11.5" cy="6.5" r="1.6"/><circle cx="7" cy="11.5" r="1.6"/><path d="M6 5.3l4 .9M10.6 7.8l-2.6 2.6M5 6.5l1.5 3.5"/></svg>
-      </button>
-      <button id="show-shell" type="button" title="Terminal (⌘2)" aria-label="Terminal">
-        <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6.5l1.8 1.5L5 9.5M8.5 10h2.5"/></svg>
-      </button>
-    </div>
-    <span id="where" data-tauri-drag-region></span>
-    <div class="map-tools">
-      <button id="arrange-map" type="button" title="Arrange every domain by depth" aria-label="Arrange the map">
-        <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="8" r="5.5" stroke-dasharray="2 2.2"/><circle cx="8" cy="2.5" r="1"/><circle cx="13" cy="10.5" r="1"/><circle cx="3.2" cy="10.8" r="1"/></svg>
-      </button>
-      <button id="fit-map" type="button" title="Show every domain (⌘0)" aria-label="Show every domain">
-        <svg viewBox="0 0 16 16"><path d="M2.5 6V3.5a1 1 0 0 1 1-1H6M10 2.5h2.5a1 1 0 0 1 1 1V6M13.5 10v2.5a1 1 0 0 1-1 1H10M6 13.5H3.5a1 1 0 0 1-1-1V10"/></svg>
-      </button>
-    </div>
-    <button id="show-settings" type="button" title="Appearance (⌘,)" aria-label="Appearance">
-      <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2"/><path d="M8 1.8v1.6M8 12.6v1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M1.8 8h1.6M12.6 8h1.6M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/></svg>
+    <button id="show-map" type="button" title="Map" data-action="map" aria-label="Map">
+      <svg viewBox="0 0 16 16"><circle cx="4.5" cy="5" r="1.6"/><circle cx="11.5" cy="6.5" r="1.6"/><circle cx="7" cy="11.5" r="1.6"/><path d="M6 5.3l4 .9M10.6 7.8l-2.6 2.6M5 6.5l1.5 3.5"/></svg>
     </button>
-    <button id="show-help" type="button" title="Shortcuts" aria-label="Shortcuts">
-      <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M6.4 6.4a1.7 1.7 0 1 1 2.3 1.6c-.5.2-.7.6-.7 1.1v.3M8 11.3v.1"/></svg>
+    <button id="show-shell" type="button" title="Terminal" data-action="shell" aria-label="Terminal">
+      <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6.5l1.8 1.5L5 9.5M8.5 10h2.5"/></svg>
+    </button>
+  </nav>
+
+  <!-- Over the top of the map: an empty strip that drags the window, and the map's tools. -->
+  <header id="top" data-tauri-drag-region>
+    <button id="arrange-map" type="button" title="Arrange every domain by depth" aria-label="Arrange the map">
+      <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="8" r="5.5" stroke-dasharray="2 2.2"/><circle cx="8" cy="2.5" r="1"/><circle cx="13" cy="10.5" r="1"/><circle cx="3.2" cy="10.8" r="1"/></svg>
+    </button>
+    <button id="fit-map" type="button" title="Show every domain" data-action="fit" aria-label="Show every domain">
+      <svg viewBox="0 0 16 16"><path d="M2.5 6V3.5a1 1 0 0 1 1-1H6M10 2.5h2.5a1 1 0 0 1 1 1V6M13.5 10v2.5a1 1 0 0 1-1 1H10M6 13.5H3.5a1 1 0 0 1-1-1V10"/></svg>
     </button>
   </header>
 
   <section id="list" aria-label="Sessions">
-    <header>
-      <h2>Sessions</h2>
-      <button id="new-shell" type="button" title="New shell" aria-label="New shell">
-        <svg viewBox="0 0 16 16"><path d="M3.5 5l3 3-3 3M8.5 11.5h4"/></svg>
+    <div class="list-top" data-tauri-drag-region></div>
+    <div class="actions-list">
+      <button id="new-session" class="row" type="button">
+        <svg viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg><span>New session</span>
       </button>
-      <button id="new-session" type="button" title="New session" aria-label="New session">
-        <svg viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg>
+      <button id="new-shell" class="row" type="button">
+        <svg viewBox="0 0 16 16"><path d="M3.5 5l3 3-3 3M8.5 11.5h4"/></svg><span>New shell</span>
       </button>
-    </header>
-    <input id="list-search" type="search" placeholder="Search (⌘K)" aria-label="Search sessions">
+      <label class="row search">
+        <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2l3.3 3.3"/></svg>
+        <input id="list-search" type="search" placeholder="Search" data-action="search" aria-label="Search sessions" autocomplete="off" spellcheck="false">
+      </label>
+    </div>
     <div id="list-body">
-      <h3 id="open-head">Open</h3>
+      <h3 id="open-head"><button class="fold" type="button" data-section="open" aria-expanded="true"><svg viewBox="0 0 16 16"><path d="M4.5 6.2l3.5 3.6 3.5-3.6"/></svg><span>Open</span><small></small></button></h3>
       <ul id="open-list"></ul>
-      <h3 id="recent-head">Recent</h3>
-      <ul id="recent-list"></ul>
+      <h3 id="tree-head">
+        <button class="fold" type="button" data-section="tree" aria-expanded="true"><svg viewBox="0 0 16 16"><path d="M4.5 6.2l3.5 3.6 3.5-3.6"/></svg><span>Domains</span><small></small></button>
+        <button id="fold-tree" type="button" title="Unfold every domain" aria-label="Unfold every domain">
+          <svg viewBox="0 0 16 16"><path d="M5 6l3-3 3 3M5 10l3 3 3-3"/></svg>
+        </button>
+        <button id="add-root" type="button" title="Add a domain" aria-label="Add a domain">
+          <svg viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg>
+        </button>
+      </h3>
+      <ul id="tree" role="tree" aria-label="Domains"></ul>
       <p id="list-note" class="note"></p>
     </div>
+    <footer class="actions-list">
+      <button id="show-settings" class="row" type="button" title="Settings" data-action="settings">
+        <svg viewBox="0 0 16 16"><path d="M2.5 5h7M12.5 5h1M2.5 11h1M6.5 11h7"/><circle cx="11" cy="5" r="1.5"/><circle cx="5" cy="11" r="1.5"/></svg><span>Settings</span>
+      </button>
+    </footer>
     <div id="list-edge" role="separator" aria-label="Resize the session list" title="Drag to resize"></div>
   </section>
 
-  <section id="shell" aria-label="Terminal" hidden>
+  <section id="shell" aria-label="Terminal" data-tauri-drag-region hidden>
     <p id="shell-empty" class="note">No open session. Choose one from the list.</p>
   </section>
 
   <aside id="panel" aria-label="Domain" hidden>
     <div id="panel-edge" role="separator" aria-label="Resize the domain panel" title="Drag to resize"></div>
-    <header>
+    <header data-tauri-drag-region>
       <input id="domain-name" aria-label="Domain name" spellcheck="false">
       <button id="close-panel" type="button" aria-label="Close" title="Close">
         <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
@@ -116,35 +126,87 @@
   </div>
 
   <div id="settings" hidden>
-    <form id="settings-sheet" class="sheet" aria-label="Appearance">
-      <header>
-        <h2>Appearance</h2>
-        <button id="close-settings" type="button" aria-label="Close" title="Close">
-          <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    <form id="settings-sheet" class="sheet" aria-label="Settings">
+      <nav id="settings-nav" aria-label="Settings">
+        <h2>Settings</h2>
+        <button type="button" data-page="appearance">
+          <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z" fill="currentColor"/></svg>Appearance
         </button>
-      </header>
+        <button type="button" data-page="terminal">
+          <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6.5l1.8 1.5L5 9.5M8.5 10h2.5"/></svg>Terminal
+        </button>
+        <button type="button" data-page="shortcuts">
+          <svg viewBox="0 0 16 16"><rect x="1.8" y="4" width="12.4" height="8" rx="1.6"/><path d="M4.5 6.6h.1M7 6.6h.1M9.5 6.6h.1M12 6.6h.01M5.5 9.4h5"/></svg>Shortcuts
+        </button>
+        <button type="button" data-page="about">
+          <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 7.3v3.6M8 5.2v.1"/></svg>About
+        </button>
+      </nav>
       <div class="settings">
-        <h3>Theme</h3>
-        <div id="theme-choice" class="themes"></div>
-        <h3>Colour mode</h3>
-        <div id="mode-choice" class="segmented" role="group" aria-label="Colour mode">
-          <button type="button" data-mode="light">Light</button>
-          <button type="button" data-mode="system">Auto</button>
-          <button type="button" data-mode="dark">Dark</button>
-        </div>
-        <p id="mode-note" class="note"></p>
-        <h3>Interface font</h3>
-        <button id="interface-font" class="font-choice" type="button" aria-haspopup="listbox"></button>
-        <h3>Terminal font</h3>
-        <button id="terminal-font" class="font-choice" type="button" aria-haspopup="listbox"></button>
-        <p class="note">Prompt icons need a font marked Icons, such as a Nerd Font.</p>
-        <div class="pair">
-          <label>Size <input id="terminal-size" type="number" min="9" max="24" step="1"></label>
-          <label>Line height <input id="line-height" type="number" min="1" max="2" step="0.05"></label>
-        </div>
-        <pre id="font-preview"><span data-ansi="blue">~/noema</span> <span data-ansi="magenta"> main</span> <span data-ansi="green">❯</span> cargo test
+        <header>
+          <h2 id="settings-title"></h2>
+          <button id="close-settings" type="button" aria-label="Close" title="Close (Esc)">
+            <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </button>
+        </header>
+
+        <section data-page="appearance" aria-label="Appearance">
+          <h3>Theme</h3>
+          <div id="theme-choice" class="themes"></div>
+          <div class="field">
+            <div><h4>Colour mode</h4><p id="mode-note" class="note"></p></div>
+            <div id="mode-choice" class="segmented" role="group" aria-label="Colour mode">
+              <button type="button" data-mode="light">Light</button>
+              <button type="button" data-mode="system">Auto</button>
+              <button type="button" data-mode="dark">Dark</button>
+            </div>
+          </div>
+          <div class="field">
+            <div><h4>Interface font</h4><p class="note">For lists, panels and names.</p></div>
+            <button id="interface-font" class="font-choice" type="button" aria-haspopup="listbox"></button>
+          </div>
+        </section>
+
+        <section data-page="terminal" aria-label="Terminal">
+          <div class="field">
+            <div><h4>Font</h4><p class="note">Prompt icons need a font marked Icons, such as a Nerd Font.</p></div>
+            <button id="terminal-font" class="font-choice" type="button" aria-haspopup="listbox"></button>
+          </div>
+          <div class="field">
+            <div><h4>Size</h4><p class="note">In pixels, from 9 to 24.</p></div>
+            <input id="terminal-size" type="number" min="9" max="24" step="1">
+          </div>
+          <div class="field">
+            <div><h4>Line height</h4><p class="note">A multiple of the size, from 1 to 2.</p></div>
+            <input id="line-height" type="number" min="1" max="2" step="0.05">
+          </div>
+          <h3>Preview</h3>
+          <pre id="font-preview"><span data-ansi="blue">~/noema</span> <span data-ansi="magenta"> main</span> <span data-ansi="green">❯</span> cargo test
    <span data-ansi="green">Compiling</span> noema-deck v0.1.0
     <span data-ansi="green">Finished</span> in 2.4s · 0O 1lI {}[]</pre>
+        </section>
+
+        <section data-page="shortcuts" aria-label="Shortcuts">
+          <p class="note lead">Click a key to move the shortcut to another. Hold Command or Control with it.</p>
+          <div id="key-list"></div>
+          <p id="key-note" class="note" role="status"></p>
+        </section>
+
+        <section data-page="about" aria-label="About">
+          <div class="about">
+            <img src="icon.svg" alt="" width="56" height="56">
+            <div>
+              <h4>Noema Deck</h4>
+              <p id="version" class="note"></p>
+            </div>
+          </div>
+          <p>Organises Claude Code sessions by domain, on a map of what you work on.</p>
+          <dl class="keys">
+            <div><dt>Source</dt><dd class="text">github.com/noema-kit/noema-deck</dd></div>
+            <div><dt>Themes</dt><dd class="text">docs/themes.md in the source</dd></div>
+            <div><dt>Licence</dt><dd>MIT</dd></div>
+          </dl>
+        </section>
       </div>
       <div id="font-menu" class="menu" hidden>
         <input id="font-search" type="search" placeholder="Search fonts" aria-label="Search fonts" autocomplete="off" spellcheck="false">
@@ -152,19 +214,6 @@
       </div>
     </form>
   </div>
-
-  <dl id="help" hidden>
-    <div><dt>Double-click the map</dt><dd>Add a domain</dd></div>
-    <div><dt>Drag</dt><dd>Move a domain</dd></div>
-    <div><dt>Shift-drag</dt><dd>Link a parent to a subdomain</dd></div>
-    <div><dt>Colour</dt><dd>Stronger is more recent</dd></div>
-    <div><dt>⌘1, ⌘2</dt><dd>Map, terminal</dd></div>
-    <div><dt>⌘B, ⌘K</dt><dd>Session list, search</dd></div>
-    <div><dt>⌘D, ⇧⌘D</dt><dd>Split the pane right, down</dd></div>
-    <div><dt>⌘0</dt><dd>Show every domain</dd></div>
-    <div><dt>Double-click a session</dt><dd>Rename it</dd></div>
-    <div><dt>⌘,</dt><dd>Appearance</dd></div>
-  </dl>
 
   <form id="namer" hidden>
     <input id="namer-input" placeholder="Name, or a folder to import" aria-label="Domain name, or a folder to import" autocomplete="off" spellcheck="false">

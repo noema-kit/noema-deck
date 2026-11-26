@@ -32,7 +32,7 @@ fn pane(deck: State<'_, Deck>, request: PaneRequest) -> Result<PaneReply, String
     deck.pane(request).map_err(|error| format!("{error:#}"))
 }
 
-/// The installed typefaces, for the Appearance sheet.
+/// The installed typefaces, for Settings.
 #[tauri::command(async)]
 fn fonts() -> &'static [Font] {
     fonts::installed()
