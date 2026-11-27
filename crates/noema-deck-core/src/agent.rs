@@ -1,5 +1,6 @@
 //! The agents whose sessions Deck arranges, and how each one is run.
 
+pub mod antigravity;
 pub mod claude;
 pub mod codex;
 
@@ -25,6 +26,7 @@ pub enum Agent {
     #[default]
     Claude,
     Codex,
+    Antigravity,
 }
 
 impl Agent {
@@ -34,6 +36,7 @@ impl Agent {
         match self {
             Self::Claude => "claude",
             Self::Codex => "codex",
+            Self::Antigravity => "antigravity",
         }
     }
 }
@@ -51,6 +54,7 @@ impl FromStr for Agent {
         match name {
             "claude" => Ok(Self::Claude),
             "codex" => Ok(Self::Codex),
+            "antigravity" => Ok(Self::Antigravity),
             other => bail!("Unknown agent `{other}`"),
         }
     }
@@ -71,12 +75,18 @@ pub struct Homes {
     pub claude: PathBuf,
     /// Codex's own folder.
     pub codex: PathBuf,
+    /// The Antigravity CLI's own folder.
+    pub antigravity: PathBuf,
 }
 
 impl Homes {
     /// The folders the agents use on this machine.
     pub fn find() -> Result<Self> {
-        Ok(Self { claude: claude::projects_dir()?, codex: codex::home()? })
+        Ok(Self {
+            claude: claude::projects_dir()?,
+            codex: codex::home()?,
+            antigravity: antigravity::home()?,
+        })
     }
 }
 
@@ -92,6 +102,7 @@ impl Listing {
     pub fn sessions(&mut self, homes: &Homes) -> Result<Vec<Session>> {
         let mut sessions = self.claude.sessions(&homes.claude)?;
         sessions.extend(self.codex.sessions(&homes.codex)?);
+        sessions.extend(antigravity::sessions(&homes.antigravity)?);
         sessions.sort_by(|a, b| b.updated.cmp(&a.updated).then_with(|| a.key.cmp(&b.key)));
         Ok(sessions)
     }
@@ -106,6 +117,7 @@ impl Listing {
                 claude::rename(transcript, &key.id, title)
             }
             Agent::Codex => codex::rename(&homes.codex, &key.id, title),
+            Agent::Antigravity => antigravity::rename(&homes.antigravity, &key.id, title),
         }
     }
 }
@@ -115,6 +127,18 @@ pub fn open(session: &Session) -> Result<Launch> {
     match session.key.agent {
         Agent::Claude => claude::open(session),
         Agent::Codex => codex::open(session),
+        Agent::Antigravity => antigravity::open(session),
+    }
+}
+
+/// The command that starts a new session with `agent` in `folder`, for an
+/// agent that chooses the session's ID itself. Claude Code takes the ID Deck
+/// chooses, so it is started with [`claude::start`].
+pub fn start(agent: Agent, folder: &Path) -> Result<Launch> {
+    match agent {
+        Agent::Claude => bail!("Claude Code takes the ID Deck chooses"),
+        Agent::Codex => codex::start(folder),
+        Agent::Antigravity => antigravity::start(folder),
     }
 }
 
@@ -125,6 +149,7 @@ pub fn for_pane(agent: Agent, launch: Launch, light: bool) -> Launch {
     match agent {
         Agent::Claude => claude::for_pane(launch, light),
         Agent::Codex => launch,
+        Agent::Antigravity => antigravity::for_pane(launch, light),
     }
 }
 

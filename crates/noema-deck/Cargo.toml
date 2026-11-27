@@ -1,6 +1,6 @@
 [package]
 name = "noema-deck"
-description = "A desktop workbench that organises Claude Code and Codex sessions by domain"
+description = "A desktop workbench that organises Claude Code, Codex and Antigravity sessions by domain"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

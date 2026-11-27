@@ -455,11 +455,11 @@ body:not(.listed) .pane.corner header { padding-left: calc(var(--lights) + 108px
   box-shadow: var(--shadow);
 }
 
-#starter { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 10px; }
+#starter { display: grid; grid-template-columns: 1fr auto; gap: 6px; width: 320px; padding: 10px; }
 #starter select, #starter-name, #starter-agent { grid-column: 1 / -1; }
 #starter-agent { display: flex; }
 #starter-agent button, #picker-agent button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-#starter-agent button { flex: 1; height: 28px; padding: 0 10px; }
+#starter-agent button { flex: 1 1 auto; height: 28px; padding: 0 8px; white-space: nowrap; }
 
 #picker, #settings { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: var(--scrim); }
 .sheet { display: flex; flex-direction: column; width: min(560px, 90vw); height: min(620px, 80vh); }
@@ -554,6 +554,7 @@ kbd { display: inline-block; min-width: 28px; padding: 3px 8px; border: 1px soli
 svg.agent.logo, .node .kind svg.agent.logo { fill: currentColor; stroke: none; opacity: 1; }
 svg.agent.claude { color: #d97757; }
 svg.agent.codex { color: var(--ink); }
+svg.artwork { position: absolute; width: 0; height: 0; overflow: hidden; }
 svg.agent.shell { color: var(--muted); }
 .segmented svg.agent { width: 13px; height: 13px; stroke-width: 1.5; }
 .pane header svg.agent { flex: none; width: 14px; height: 14px; margin-right: 8px; stroke-width: 1.4; }

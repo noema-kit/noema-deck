@@ -1,6 +1,6 @@
 # Design
 
-Deck sorts Claude Code and Codex sessions by domain and runs them in terminal panes. [Architecture](architecture.md) says how it is built.
+Deck sorts Claude Code, Codex and Antigravity sessions by domain and runs them in terminal panes. [Architecture](architecture.md) says how it is built.
 
 ## Principles
 
@@ -33,7 +33,7 @@ The session list runs down the left, and the map or the terminal fills the rest.
 | Domain panel | The selected domain's name, parents, subdomains and sessions. |
 | Terminal | Panes tiled in rows and columns. Panes out of sight keep running. |
 
-- **Domain tree.** A domain is a folder, empty while it has no session. A session carries its maker's logo, Claude's or OpenAI's, and its time; a running one shows its state in the logo's corner. A shell carries a terminal window. A domain with two parents appears under both. A search unfolds everything and keeps what matches. Folding is remembered.
+- **Domain tree.** A domain is a folder, empty while it has no session. A session carries its agent's logo, Claude's, OpenAI's or Antigravity's, and its time; a running one shows its state in the logo's corner. A shell carries a terminal window. A domain with two parents appears under both. A search unfolds everything and keeps what matches. Folding is remembered.
 - **Sizes.** The list, the panel and the dividers between panes drag by their edges and are remembered.
 
 ## Map
@@ -44,7 +44,7 @@ The session list runs down the left, and the map or the terminal fills the rest.
 
 ## Sessions
 
-- **New session.** Choose an agent, a domain, a folder and an optional name. The session is assigned at once, and the agent is remembered for next time. Claude Code takes the name as `--name`. Codex chooses the session's ID itself, so Deck follows the first new Codex session in that folder and names it once Codex has stored it. Both store a session at its first prompt, so one closed before then is dropped.
+- **New session.** Choose an agent, a domain, a folder and an optional name. The session is assigned at once, and the agent is remembered for next time. Claude Code takes the name as `--name`. Codex and Antigravity choose the session's ID themselves, so Deck follows the first new session of that agent in that folder and names it once the agent has stored it. Each stores a session at its first prompt, so one closed before then is dropped.
 - **Add existing.** A picker over every agent's whole history, which can show one agent only.
 - **Titles.** The agent's own title or name, else the first prompt, else, for Claude Code, the first command, such as `/login`.
 - **Renaming.** A double click on a row or a pane's title. Deck writes the name where the agent keeps it, as its own renaming does, so both agree.

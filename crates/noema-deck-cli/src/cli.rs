@@ -9,7 +9,7 @@ use noema_deck_core::import;
 #[command(
     name = "noema-deck",
     version,
-    about = "Organise Claude Code and Codex sessions by domain"
+    about = "Organise Claude Code, Codex and Antigravity sessions by domain"
 )]
 pub struct Cli {
     /// Store file. Defaults to the per-user application data directory.

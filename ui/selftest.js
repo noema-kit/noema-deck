@@ -127,7 +127,7 @@ function key(name, more) {
 
 const steps = [
   ["the agent's history stays out of the session list", async () => {
-    await until("four sessions", () => state.snapshot.sessions.length === 4);
+    await until("five sessions", () => state.snapshot.sessions.length === 5);
     expect(!titles("list-body").length, `the list showed ${titles("list-body")}`);
   }],
   ["double-clicking empty space adds a root domain", async () => {
@@ -180,11 +180,15 @@ const steps = [
   ["sessions join a domain from the history, and its parents count them once", async () => {
     await clickDomain("Memory");
     $("add-existing").click();
-    await until("the history", () => titles("picker-list").length === 4);
+    await until("the history", () => titles("picker-list").length === 5);
     const sign = (title) => row("picker-list", title).querySelector("svg.agent").classList;
-    expect(sign("Alpha").contains("claude") && sign("Delta").contains("codex"), "the history did not show each session's agent");
-    [...$("picker-agent").children].find((option) => option.textContent === "Codex").click();
+    const signs = sign("Alpha").contains("claude") && sign("Delta").contains("codex") && sign("Epsilon").contains("antigravity");
+    expect(signs, "the history did not show each session's agent");
+    const only = (name) => [...$("picker-agent").children].find((option) => option.textContent === name).click();
+    only("Codex");
     expect(titles("picker-list").join() === "Delta", `Codex's sessions were ${titles("picker-list")}`);
+    only("Antigravity");
+    expect(titles("picker-list").join() === "Epsilon", `Antigravity's sessions were ${titles("picker-list")}`);
     $("picker-agent").firstChild.click();
     row("picker-list", "Alpha").click();
     row("picker-list", "Beta").click();
@@ -374,6 +378,26 @@ const steps = [
     await until("the pane to close", () => !panes.includes(pane));
     await sleep(300);
     expect(count("Memory") === 3, "the stored session left its domain");
+  }],
+  ["a new Antigravity session runs agy, then takes the ID agy chose", async () => {
+    const chosen = "6b4c3a20-0000-4000-8000-00000000000a";
+    $("start-here").click();
+    await until("the folder box", () => !$("starter").hidden && $("starter-folder").value);
+    [...$("starter-agent").children].find((option) => option.textContent === "Antigravity").click();
+    $("starter-name").value = "Antigravity start";
+    $("starter").requestSubmit();
+    await until("agy's first line", () => terminal().includes("fake agy"));
+    const pane = panes.at(-1);
+    expect(pane.node.querySelector("header svg.agent.antigravity"), "the pane did not show Antigravity's sign");
+    window.dispatchEvent(new Event("focus"));
+    await until("the ID agy chose", () => pane.key === `antigravity/${chosen}`);
+    const session = state.snapshot.sessions.find((item) => item.id === chosen);
+    expect(session?.title === "Antigravity start", `the session was called ${session?.title}`);
+    expect(leaf("Antigravity start")?.querySelector("svg.agent.antigravity"), "the list did not show Antigravity's sign");
+    pane.node.querySelector(".close").click();
+    await until("the pane to close", () => !panes.includes(pane));
+    await sleep(300);
+    expect(count("Memory") === 4, "the stored session left its domain");
   }],
   ["typing a folder in the name box imports its tree of domains", async () => {
     // The fixture sessions ran in the folder that also holds the fixture tree.

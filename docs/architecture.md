@@ -12,7 +12,7 @@ flowchart LR
     APP --> CORE["noema-deck-core"]
     CLI --> CORE
     CORE --> S["SQLite store"]
-    CORE --> A["Claude Code and Codex: session files and CLIs"]
+    CORE --> A["Claude Code, Codex and Antigravity: session files and CLIs"]
     CORE --> T["Pseudoterminals"]
 ```
 
@@ -27,7 +27,7 @@ flowchart LR
 
 | Module | Holds |
 | --- | --- |
-| `agent`, `agent::claude`, `agent::codex` | The agents, and one adapter each: list and rename sessions, and the commands that open or start one. |
+| `agent`, `agent::claude`, `agent::codex`, `agent::antigravity` | The agents, and one adapter each: list and rename sessions, and the commands that open or start one. |
 | `session`, `domain` | The records Deck works with. |
 | `store` | The SQLite file: tables and upgrades, domains, assignments, settings. |
 | `import` | A folder tree turned into domains laid out on rings. |
@@ -123,3 +123,18 @@ Read from Claude Code 2.1.330 on macOS. The transcript format is undocumented, s
 | Start | `codex` in the folder. Codex chooses the ID, so Deck holds the session under a stand-in key and takes Codex's ID once Codex lists a new session in that folder, moving its domains and its kept pane along. A name given is written once Codex has stored it |
 
 Read from Codex 0.171.0 on macOS. `CODEX_HOME` moves the folder, as it does for Codex.
+
+## Antigravity
+
+| Action | Interface |
+| --- | --- |
+| List | Conversation summaries in the SQLite file `~/.gemini/antigravity-cli/conversation_summaries.db`, read only. Only conversations with a step and a file in `conversations/`, as `agy`'s `/resume` lists them, not sub-agents |
+| Title | `title` in the conversation's annotations, `annotations/<id>.pbtxt`, else the summary's title, else the first prompt typed in `history.jsonl`. A conversation with none is left out |
+| Rename | Set `title` in the annotations, where `agy` keeps the names given to conversations and copies them into its summaries |
+| Folder | First `file://` URI in the summary's `workspace_uris` |
+| Last activity | The later of the summary's time and the conversation file's modification time |
+| Open | `agy --conversation <id>` in the conversation's folder |
+| Start | `agy` in the folder. `agy` chooses the ID, so Deck follows the first new conversation in that folder, as for Codex |
+| Theme | In a pane, `--settings` swaps a light or dark `colorScheme` for its counterpart to match the pane, for that run only |
+
+Read from the Antigravity CLI, `agy` 1.5.18, on macOS. `agy` always uses that folder. `NOEMA_DECK_ANTIGRAVITY_HOME` points Deck elsewhere, for tests.

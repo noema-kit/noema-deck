@@ -20,7 +20,7 @@ pub use self::{
     snapshot::{DomainView, MissingSession, SessionView, Snapshot},
 };
 use crate::{
-    agent::{self, Agent, Homes, Launch, claude, codex},
+    agent::{self, Agent, Homes, Launch, claude},
     domain::DomainId,
     folder, import,
     pane::PaneId,
@@ -172,25 +172,20 @@ impl Map {
         self.store.require(domain)?;
         let folder = folder::from_label(folder);
         let id = Uuid::new_v4().to_string();
-        match agent {
-            Agent::Claude => {
-                let launch = claude::start(&id, &folder, name)?;
-                Ok(Plan { key: SessionKey { agent, id }, launch, unknown: None })
-            }
-            Agent::Codex => {
-                let launch = codex::start(&folder)?;
-                self.refresh()?;
-                let listed = self.sessions.iter().filter(|session| session.key.agent == agent);
-                let unknown = Unknown {
-                    // Codex records the folder with its links resolved.
-                    folder: fs::canonicalize(&folder).unwrap_or(folder),
-                    listed: listed.map(|session| session.key.id.clone()).collect(),
-                };
-                // A stand-in until Codex has chosen the ID.
-                let key = SessionKey { agent, id: format!("new-{id}") };
-                Ok(Plan { key, launch, unknown: Some(unknown) })
-            }
+        if agent == Agent::Claude {
+            let launch = claude::start(&id, &folder, name)?;
+            return Ok(Plan { key: SessionKey { agent, id }, launch, unknown: None });
         }
+        let launch = agent::start(agent, &folder)?;
+        self.refresh()?;
+        let listed = self.sessions.iter().filter(|session| session.key.agent == agent);
+        let unknown = Unknown {
+            folder: fs::canonicalize(&folder).unwrap_or(folder),
+            listed: listed.map(|session| session.key.id.clone()).collect(),
+        };
+        // A stand-in until the agent has chosen the ID.
+        let key = SessionKey { agent, id: format!("new-{id}") };
+        Ok(Plan { key, launch, unknown: Some(unknown) })
     }
 
     /// Assigns the session now running in `pane` to `domain`, so it shows there
@@ -278,7 +273,10 @@ impl Map {
             let found = listed.iter().find(|session| {
                 session.key.agent == agent
                     && !unknown.listed.contains(&session.key.id)
-                    && session.folder.as_deref() == Some(unknown.folder.as_path())
+                    // Agents may record the folder with its links resolved or not.
+                    && session.folder.as_ref().is_some_and(|folder| {
+                        fs::canonicalize(folder).as_ref().unwrap_or(folder) == &unknown.folder
+                    })
                     && !taken(&session.key)
             });
             let Some(found) = found else { continue };
@@ -312,7 +310,11 @@ mod tests {
             let line = json!({ "type": "ai-title", "aiTitle": title, "cwd": "/work" });
             fs::write(project.join(format!("{id}.jsonl")), line.to_string())?;
         }
-        let homes = Homes { claude: folder.join("projects"), codex: folder.join("codex") };
+        let homes = Homes {
+            claude: folder.join("projects"),
+            codex: folder.join("codex"),
+            antigravity: folder.join("antigravity"),
+        };
         Map::open(&folder.join("deck.db"), homes)
     }
 
