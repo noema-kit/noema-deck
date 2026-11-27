@@ -37,8 +37,9 @@ Claude Code, Codex and Antigravity keep every session, but as flat histories, on
 - **Your real sessions.** Deck opens Claude Code, Codex and Antigravity sessions in their own interfaces and stores only which domains they belong to. No copies, and no chat window of its own.
 - **Tiled terminal.** Run sessions and shells side by side. Drag one onto a pane to split it. Open panes come back where they were.
 - **File-tree sidebar.** Browse domains as folders, each session marked with its agent and running ones with their state.
+- **Usage and profile.** Each agent's plan limits, tokens by day, model and session, and a year of activity on a local profile, from the agents' own records and `/usage`.
 - **Made to fit.** A quiet light and dark theme, Galaxy for a night sky, any installed font, and shortcuts you can rebind.
-- **Scriptable.** The same program lists, opens, renames and assigns sessions from a shell.
+- **Scriptable.** The same program lists, opens, renames and assigns sessions, and counts tokens, from a shell.
 
 ## Install
 

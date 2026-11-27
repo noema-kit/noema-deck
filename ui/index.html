@@ -70,9 +70,13 @@
       <ul id="tree" role="tree" aria-label="Domains"></ul>
       <p id="list-note" class="note"></p>
     </div>
+    <!-- As in Claude's desktop app: who you are at the foot, then Settings. -->
     <footer class="actions-list">
-      <button id="show-settings" class="row" type="button" title="Settings" data-action="settings">
-        <svg viewBox="0 0 16 16"><path d="M2.5 5h7M12.5 5h1M2.5 11h1M6.5 11h7"/><circle cx="11" cy="5" r="1.5"/><circle cx="5" cy="11" r="1.5"/></svg><span>Settings</span>
+      <button id="show-profile" class="row" type="button" title="Profile">
+        <span id="footer-avatar" class="avatar"></span><span id="footer-name">Profile</span>
+      </button>
+      <button id="show-settings" type="button" title="Settings" data-action="settings" aria-label="Settings">
+        <svg viewBox="0 0 16 16"><path d="M2.5 5h7M12.5 5h1M2.5 11h1M6.5 11h7"/><circle cx="11" cy="5" r="1.5"/><circle cx="5" cy="11" r="1.5"/></svg>
       </button>
     </footer>
     <div id="list-edge" role="separator" aria-label="Resize the session list" title="Drag to resize"></div>
@@ -131,6 +135,9 @@
     <form id="settings-sheet" class="sheet" aria-label="Settings">
       <nav id="settings-nav" aria-label="Settings">
         <h2>Settings</h2>
+        <button type="button" data-page="profile">
+          <svg viewBox="0 0 16 16"><circle cx="8" cy="5.8" r="2.6"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/></svg>Profile
+        </button>
         <button type="button" data-page="appearance">
           <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z" fill="currentColor"/></svg>Appearance
         </button>
@@ -139,6 +146,9 @@
         </button>
         <button type="button" data-page="shortcuts">
           <svg viewBox="0 0 16 16"><rect x="1.8" y="4" width="12.4" height="8" rx="1.6"/><path d="M4.5 6.6h.1M7 6.6h.1M9.5 6.6h.1M12 6.6h.01M5.5 9.4h5"/></svg>Shortcuts
+        </button>
+        <button type="button" data-page="usage">
+          <svg viewBox="0 0 16 16"><path d="M2.5 13.5h11M4.5 11V8M8 11V3.5M11.5 11V6"/></svg>Usage
         </button>
         <button type="button" data-page="about">
           <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 7.3v3.6M8 5.2v.1"/></svg>About
@@ -187,6 +197,56 @@
    <span data-ansi="green">Compiling</span> noema-deck v0.1.0
     <span data-ansi="green">Finished</span> in 2.4s · 0O 1lI {}[]</pre>
         </section>
+
+        <section data-page="profile" aria-label="Profile">
+          <div class="identity">
+            <div class="portrait">
+              <button id="avatar-choice" class="avatar large" type="button" title="Choose a picture" aria-label="Choose a picture"></button>
+              <button id="avatar-remove" type="button" title="Remove the picture" aria-label="Remove the picture" hidden>
+                <svg viewBox="0 0 16 16"><path d="M5 5l6 6M11 5l-6 6"/></svg>
+              </button>
+            </div>
+            <input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+            <input id="profile-name" placeholder="Your name" aria-label="Your name" maxlength="60" autocomplete="off" spellcheck="false">
+          </div>
+          <dl id="profile-stats" class="stats"></dl>
+          <div class="usage-head">
+            <h3>Token activity</h3>
+            <span class="scale">Less<i class="shade-0"></i><i class="shade-1"></i><i class="shade-2"></i><i class="shade-3"></i><i class="shade-4"></i>More</span>
+          </div>
+          <div id="usage-activity" class="chart"></div>
+        </section>
+
+        <section data-page="usage" aria-label="Usage">
+          <div id="usage-tabs" class="tabs" role="tablist" aria-label="Usage">
+            <button type="button" role="tab" data-tab="overview">Overview</button>
+            <button type="button" role="tab" data-tab="analytics">Analytics</button>
+          </div>
+          <div data-tab="overview" role="tabpanel">
+            <div class="usage-head">
+              <p class="note">How much of each plan is used, as each agent reports it.</p>
+              <button id="limits-again" class="more" type="button">Check again</button>
+            </div>
+            <div id="usage-plans"></div>
+          </div>
+          <div data-tab="analytics" role="tabpanel" hidden>
+            <div class="usage-head">
+              <div id="usage-span" class="segmented small" role="group" aria-label="Span"></div>
+              <select id="usage-agent" aria-label="Agent"></select>
+            </div>
+            <p id="usage-note" class="note"></p>
+            <dl id="usage-stats" class="stats"></dl>
+            <div id="usage-chart" class="chart"></div>
+            <div id="usage-legend" class="legend"></div>
+            <div class="usage-head">
+              <h3>Top</h3>
+              <div id="usage-top-kind" class="segmented small" role="group" aria-label="List"></div>
+            </div>
+            <table id="usage-top"><thead></thead><tbody></tbody></table>
+            <button id="usage-more" class="more" type="button" hidden></button>
+          </div>
+        </section>
+        <div id="usage-tip" role="tooltip" hidden></div>
 
         <section data-page="shortcuts" aria-label="Shortcuts">
           <p class="note lead">Click a key to move the shortcut to another. Hold Command or Control with it.</p>

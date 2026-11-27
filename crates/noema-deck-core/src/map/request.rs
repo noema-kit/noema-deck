@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::{
     domain::DomainId,
     session::SessionKey,
-    store::{Appearance, OpenPanes, Shortcuts},
+    store::{Appearance, OpenPanes, Profile, Shortcuts},
 };
 
 /// A request about the map. Every one is answered with a fresh
@@ -78,5 +78,9 @@ pub enum Request {
     /// Move shortcuts to other keys. The ones left out keep their own.
     SetShortcuts {
         shortcuts: Shortcuts,
+    },
+    /// Change the name and picture on the Profile page.
+    SetProfile {
+        profile: Profile,
     },
 }

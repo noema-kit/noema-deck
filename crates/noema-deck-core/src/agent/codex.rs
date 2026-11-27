@@ -155,7 +155,7 @@ fn names(index: &Path) -> Result<HashMap<String, String>> {
 }
 
 /// Every rollout under `sessions`, which holds a folder per year, month and day.
-fn rollouts(sessions: &Path) -> Result<Vec<PathBuf>> {
+pub(crate) fn rollouts(sessions: &Path) -> Result<Vec<PathBuf>> {
     let mut found = Vec::new();
     for year in entries(sessions)?.iter().filter(|path| path.is_dir()) {
         for month in entries(year)?.iter().filter(|path| path.is_dir()) {
@@ -165,6 +165,25 @@ fn rollouts(sessions: &Path) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(found)
+}
+
+/// Every rollout Codex moved to `<home>/archived_sessions`, which holds no
+/// folders.
+pub(crate) fn archived(home: &Path) -> Result<Vec<PathBuf>> {
+    Ok(entries(&home.join("archived_sessions"))?
+        .into_iter()
+        .filter(|path| is_rollout(path))
+        .collect())
+}
+
+/// Opens a rollout to read, uncompressing one Codex has compressed.
+pub(crate) fn open_rollout(path: &Path) -> Option<Box<dyn Read>> {
+    let file = File::open(path).ok()?;
+    if path.extension().is_some_and(|extension| extension == "zst") {
+        Some(Box::new(zstd::Decoder::new(file).ok()?))
+    } else {
+        Some(Box::new(file))
+    }
 }
 
 /// Whether `path` is a rollout, `rollout-<time>-<uuid>.jsonl`, compressed or not.
@@ -218,13 +237,7 @@ struct Content {
 /// Reads what Deck needs from a rollout, or `None` when it is not a session
 /// a person can resume, or cannot be read.
 fn read_rollout(path: &Path) -> Option<Rollout> {
-    let file = File::open(path).ok()?;
-    let source: Box<dyn Read> = if path.extension().is_some_and(|extension| extension == "zst") {
-        Box::new(zstd::Decoder::new(file).ok()?)
-    } else {
-        Box::new(file)
-    };
-    let mut reader = BufReader::new(source);
+    let mut reader = BufReader::new(open_rollout(path)?);
     let mut line = Vec::new();
     reader.read_until(b'\n', &mut line).ok()?;
     let first: First = serde_json::from_slice(&line).ok()?;

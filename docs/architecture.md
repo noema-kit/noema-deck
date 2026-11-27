@@ -6,8 +6,8 @@ How Deck is built. [Design](design.md) says what it does.
 
 ```mermaid
 flowchart LR
-    UI["ui/: map, lists and terminals"] -->|map, pane| APP["noema-deck: desktop window"]
-    UI -->|/map, /pane| CLI["noema-deck-cli: commands and local server"]
+    UI["ui/: map, lists, terminals and settings"] -->|map, pane, usage, limits| APP["noema-deck: desktop window"]
+    UI -->|/map, /pane, /usage, /limits| CLI["noema-deck-cli: commands and local server"]
     APP --> CLI
     APP --> CORE["noema-deck-core"]
     CLI --> CORE
@@ -21,7 +21,7 @@ flowchart LR
 | `noema-deck-core` | Everything Deck knows and does. No window, no arguments, no printing. |
 | `noema-deck-cli` | The commands, what they print, and a local server that gives the interface to a browser. |
 | `noema-deck` | The Tauri window. Given a command, it hands it to the CLI library, so one program is both the app and the command-line tool. |
-| `ui/` | Plain HTML, CSS and JavaScript with no build step. `app.js` sends requests and fills the lists, `map.js` runs the map and hands its drawing to the theme's painter, `theme.js` and `settings.js` put on and change the look, and `keys.js` holds the shortcuts. Each theme is a folder in `ui/themes/`. |
+| `ui/` | Plain HTML, CSS and JavaScript with no build step. `app.js` sends requests and fills the lists, `map.js` runs the map and hands its drawing to the theme's painter, `theme.js` and `settings.js` put on and change the look, `usage.js` draws the Usage and Profile pages of Settings, `profile.js` keeps the name and picture, and `keys.js` holds the shortcuts. Each theme is a folder in `ui/themes/`. |
 
 ## Core modules
 
@@ -33,8 +33,9 @@ flowchart LR
 | `import` | A folder tree turned into domains laid out on rings. |
 | `map` | Domains, links and assignments joined with the agents' sessions. One `Request` goes in and one `Snapshot` comes out. `map::arrange` lays the domains out by depth around one centre. |
 | `pane` | Terminal panes on pseudoterminals. |
+| `usage`, `usage::claude`, `usage::codex`, `usage::antigravity` | The tokens each agent's records hold, added up by day, model and session. `usage::limits` asks each agent how much of its plan is used. |
 | `fonts` | The installed typefaces, read once: which share one width, and which draw prompt icons. |
-| `deck` | One running Deck: the map behind a lock, and the panes. |
+| `deck` | One running Deck: the map behind a lock, the panes, and the usage as last read. |
 
 ## One request, one snapshot
 
@@ -51,7 +52,7 @@ sequenceDiagram
     M-->>UI: Snapshot: domains, links, sessions, missing
 ```
 
-Every rule lives in the core: a refused link, a domain's count, which sessions are missing. The window and the server pass the same routes through unchanged, `map`, `pane` and `fonts`, so the interface behaves the same in both. A snapshot equal to the one on screen is not drawn again.
+Every rule lives in the core: a refused link, a domain's count, which sessions are missing. The window and the server pass the same routes through unchanged, `map`, `pane`, `usage`, `limits` and `fonts`, so the interface behaves the same in both. A snapshot equal to the one on screen is not drawn again.
 
 ## Interface
 
@@ -69,14 +70,14 @@ The map is one canvas, because a pan or a zoom repaints every domain on every fr
 
 ## Store
 
-One SQLite file in the per-user application data directory. Nothing from a session's content is stored.
+One SQLite file in the per-user application data directory, beside `limits.json`, which keeps Antigravity's last plan limits. Nothing from a session's content is stored.
 
 | Table | Columns |
 | --- | --- |
 | `domain` | `id`, `name`, `x`, `y` |
 | `link` | `parent`, `child` |
 | `assignment` | `domain`, `agent`, `session` |
-| `setting` | `name`, `value`: the last folder, the panes to reopen with their layout tree, the appearance, and the shortcuts moved to other keys |
+| `setting` | `name`, `value`: the last folder, the panes to reopen with their layout tree, the appearance, the shortcuts moved to other keys, and the profile's name and picture |
 
 `PRAGMA user_version` counts the upgrade steps a store has had. Opening runs the ones it lacks, and refuses a store from a newer Deck.
 
@@ -90,6 +91,35 @@ A pane runs one command on a pseudoterminal: an agent on a session, or the user'
 - **Reading waits.** The interface asks for output and the answer comes when there is some, or after twenty seconds.
 - **Environment.** A desktop app starts without a terminal's `PATH`. Deck asks the login shell for its environment once, at startup, and runs every pane with it, minus the variables of whatever terminal started Deck, and with `TERM=xterm-256color`, `COLORTERM=truecolor` and `TERM_PROGRAM=NoemaDeck`.
 - **Drawing.** Each terminal is xterm.js drawing through WebGL, and through plain elements when WebGL is unavailable. The page answers a program's question about light and dark (mode 2031) itself.
+
+## Usage
+
+The `usage` route answers with a `Report`: tokens by day, agent and model, and tokens by session and day. The interface picks the span and the agent itself, so changing either sends no request. The `limits` route answers with each agent's `Plan`, or one agent's: each window's name, the share used and when it starts again.
+
+| Agent | Records read | Counted |
+| --- | --- | --- |
+| Claude Code | Every transcript under `projects`, sub-agents' in the session's folder included | `message.usage` of each `assistant` record, once per `message.id`: the finished part, else the one with the most output |
+| Codex | Rollouts in `sessions` and `archived_sessions`, compressed or not | `last_token_usage` of each `token_count` event whose running total moved, once per time and total. Its cached input is taken out of input. The latest `rate_limits` give the plan limits |
+| Antigravity | `brain/<id>/.system_generated/logs/transcript_full.jsonl` of the CLI and of the editor beside it | The tokens of each finished `PLANNER_RESPONSE` step. Its model is the step's own, else the last `Model Selection` chosen |
+
+Tokens come in four kinds: fresh input, input read from the prompt cache, input written to it, and output, reasoning included. A file is read again only when its time or length changes, on as many threads as there are cores: Codex compresses old rollouts, and in a release build the first reading of 2.3 GB of them took 1.8 seconds, against 7 on one thread. Only lines that can hold tokens are parsed.
+
+Claude Code's and Codex's records were read from the versions named below. Antigravity's token fields follow cc-switch's reader, as no conversation on the machine they were tested on had any.
+
+| Agent | Plan limits |
+| --- | --- |
+| Claude Code | `claude -p /usage`, with no tools, settings or saved session, answered by Claude Code itself without a model. It keeps the answer in `.claude.json` as `cachedUsageUtilization`, whose `limits` Deck reads when it is for the account signed in |
+| Codex | `rate_limits` of the latest `token_count` event. A window whose reset has passed was not used since |
+| Antigravity | `agy --print /usage --output-format json`: each model group's `5h` and `weekly` buckets, with the share remaining |
+
+Claude Code and Antigravity are asked at most every two minutes and given 45 seconds, each in the login shell's environment, as a pane is: cut off from the proxy the shell sets, `agy` took 31 seconds to answer rather than 5. `agy` leaves a process behind that holds its output open, so what it printed is taken as it comes, not at the end of the pipe. An agent being asked never holds up reading what is already known.
+
+So the pages open on figures at hand:
+
+- **At start**, Deck reads the agents' records and asks both agents in the background. A later reading rereads only the files that changed, in about a tenth of a second.
+- **Antigravity's last answer** is kept in `limits.json` beside the store, as `agy` keeps none. Claude Code keeps its own.
+- **Each card** asks its own agent, and takes the answer as it comes, showing the last one until then.
+- **The desktop window** runs every command on the runtime's threads for blocking work. On its few workers, a handful of panes waiting up to twenty seconds for output would leave every other request in line.
 
 ## Local server
 

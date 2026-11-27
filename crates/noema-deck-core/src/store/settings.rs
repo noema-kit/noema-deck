@@ -135,6 +135,50 @@ impl Appearance {
     }
 }
 
+/// Who uses this copy of Deck: a name and a picture, shown on the Profile
+/// page and at the foot of the list. Deck has no accounts; this stays in the
+/// store on this machine.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Profile {
+    pub name: Option<String>,
+    /// A small square picture, as a `data:` URL the interface made from the
+    /// image chosen.
+    pub avatar: Option<String>,
+}
+
+/// The largest picture kept, in bytes of its `data:` URL.
+const AVATAR_LIMIT: usize = 400_000;
+
+impl Profile {
+    /// The same profile with a blank name left out, or a refusal of a name or
+    /// picture that is not one.
+    fn checked(mut self) -> Result<Self> {
+        self.name =
+            self.name.as_deref().map(str::trim).filter(|name| !name.is_empty()).map(String::from);
+        if let Some(name) = &self.name {
+            ensure!(
+                name.chars().count() <= 60 && !name.chars().any(char::is_control),
+                "A name is one line of at most 60 characters"
+            );
+        }
+        if let Some(avatar) = &self.avatar {
+            let data = ["png", "jpeg", "webp"]
+                .iter()
+                .find_map(|kind| avatar.strip_prefix(&format!("data:image/{kind};base64,")));
+            ensure!(
+                avatar.len() <= AVATAR_LIMIT
+                    && data.is_some_and(|data| {
+                        data.bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || b"+/=".contains(&byte))
+                    }),
+                "A picture is a PNG, JPEG or WebP image of at most 400 KB"
+            );
+        }
+        Ok(self)
+    }
+}
+
 /// The keys the person moved Deck's shortcuts to, by the action each runs,
 /// such as `split_right` to `mod+shift+KeyR`. A key is the modifiers it is
 /// held with, `mod` (Command, or Control elsewhere), `ctrl`, `alt` and
@@ -228,6 +272,17 @@ impl Store {
 
     pub fn set_shortcuts(&self, shortcuts: Shortcuts) -> Result<()> {
         self.set_setting("shortcuts", &serde_json::to_string(&checked_shortcuts(shortcuts)?)?)
+    }
+
+    /// Who uses this copy of Deck. What an older or newer Deck wrote and this
+    /// one cannot read is no one.
+    pub fn profile(&self) -> Result<Profile> {
+        let text = self.setting("profile")?;
+        Ok(text.and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default())
+    }
+
+    pub fn set_profile(&self, profile: Profile) -> Result<()> {
+        self.set_setting("profile", &serde_json::to_string(&profile.checked()?)?)
     }
 
     fn setting(&self, name: &str) -> Result<Option<String>> {
@@ -327,6 +382,26 @@ mod tests {
             Shortcuts::from([("a".into(), "mod+KeyA".into()), ("b".into(), "mod+KeyA".into())]);
         assert!(store.set_shortcuts(twice).is_err());
         assert_eq!(store.shortcuts()?, moved);
+        Ok(())
+    }
+
+    #[test]
+    fn a_profile_is_kept_and_a_picture_that_is_not_one_is_refused() -> Result<()> {
+        let store = Store::in_memory()?;
+        assert_eq!(store.profile()?, Profile::default());
+        let avatar = Some("data:image/png;base64,iVBORw0KGgo=".to_owned());
+        store.set_profile(Profile { name: Some("  Ada ".into()), avatar: avatar.clone() })?;
+        assert_eq!(store.profile()?, Profile { name: Some("Ada".into()), avatar });
+        let wrong = [
+            Profile { name: Some("a\nb".into()), avatar: None },
+            Profile { name: None, avatar: Some("data:text/html;base64,PGI+".into()) },
+            Profile { name: None, avatar: Some("data:image/png;base64,\"><b>".into()) },
+        ];
+        for profile in wrong {
+            assert!(store.set_profile(profile).is_err());
+        }
+        store.set_profile(Profile { name: Some(" ".into()), avatar: None })?;
+        assert_eq!(store.profile()?, Profile::default());
         Ok(())
     }
 

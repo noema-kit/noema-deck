@@ -16,7 +16,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
-use noema_deck_core::Deck;
+use noema_deck_core::{Deck, usage::LimitsRequest};
 use serde_json::json;
 
 /// The largest request body read. Requests are small; pasted text is the most.
@@ -90,7 +90,9 @@ impl Server {
             return Response::text("403 Forbidden");
         }
         match (request.method.as_str(), request.path.as_str()) {
-            ("POST", route @ ("/map" | "/pane" | "/fonts")) if request.is_json => {
+            ("POST", route @ ("/map" | "/pane" | "/usage" | "/limits" | "/fonts"))
+                if request.is_json =>
+            {
                 match self.call(route, &request.body) {
                     Ok(body) => Response { status: "200 OK", kind: "application/json", body },
                     Err(error) => {
@@ -108,6 +110,11 @@ impl Server {
         let invalid = "Invalid request";
         let answer = if route == "/fonts" {
             serde_json::to_vec(noema_deck_core::fonts::installed())
+        } else if route == "/usage" {
+            serde_json::to_vec(&self.deck.usage()?)
+        } else if route == "/limits" {
+            let request: LimitsRequest = serde_json::from_slice(body).context(invalid)?;
+            serde_json::to_vec(&self.deck.limits(request)?)
         } else if route == "/pane" {
             serde_json::to_vec(&self.deck.pane(serde_json::from_slice(body).context(invalid)?)?)
         } else {

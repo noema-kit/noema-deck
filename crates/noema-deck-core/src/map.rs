@@ -92,6 +92,12 @@ impl Map {
         Self::open(&store, Homes::find()?)
     }
 
+    /// Where the agents keep their sessions.
+    #[must_use]
+    pub fn homes(&self) -> &Homes {
+        &self.homes
+    }
+
     /// Carries out a request and answers with the map as it then stands.
     pub fn handle(&mut self, request: Request) -> Result<Snapshot> {
         match request {
@@ -124,6 +130,7 @@ impl Map {
             Request::KeepPanes { panes } => self.store.set_open_panes(panes)?,
             Request::SetAppearance { appearance } => self.store.set_appearance(appearance)?,
             Request::SetShortcuts { shortcuts } => self.store.set_shortcuts(shortcuts)?,
+            Request::SetProfile { profile } => self.store.set_profile(profile)?,
         }
         self.snapshot()
     }

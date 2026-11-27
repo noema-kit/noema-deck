@@ -182,7 +182,7 @@ fn append(file: &Path, record: &serde_json::Value) -> Result<()> {
 }
 
 /// The entries of `dir`, or none when it does not exist.
-fn entries(dir: &Path) -> Result<Vec<PathBuf>> {
+pub(crate) fn entries(dir: &Path) -> Result<Vec<PathBuf>> {
     if !dir.exists() {
         return Ok(Vec::new());
     }

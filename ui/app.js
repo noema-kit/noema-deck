@@ -3,7 +3,9 @@
 
 import { MapView } from "./map.js";
 import { actionFor, label as labelKeys, setMoved } from "./keys.js";
+import { setupProfile, showProfile } from "./profile.js";
 import { closeSettings, openSettings, setupSettings } from "./settings.js";
+import { setupUsage } from "./usage.js";
 import { apply, loadThemes, look, watch } from "./theme.js";
 
 const tauri = window.__TAURI__;
@@ -111,7 +113,11 @@ let drawn = ""; // The snapshot on screen, as the text it arrived in.
 
 // Requests
 
-/** Sends one request down a route: "map" for domains and sessions, "pane" for a terminal, "fonts" for the installed typefaces. */
+/**
+ * Sends one request down a route: "map" for domains and sessions, "pane" for a
+ * terminal, "usage" for the tokens the agents used, "limits" for how much of
+ * each plan is used, "fonts" for the installed typefaces.
+ */
 async function send(route, request) {
   if (tauri) {
     try {
@@ -302,6 +308,7 @@ function focus(id) {
 function render() {
   const { domains, links } = state.snapshot;
   setMoved(state.snapshot.shortcuts ?? {});
+  showProfile(state.snapshot.profile);
   if (state.focus !== null && !domainById(state.focus)) state.focus = null;
   map.chart(domains, links);
   map.mark({ focus: state.focus });
@@ -747,6 +754,7 @@ document.addEventListener("pointerdown", (event) => {
 });
 
 $("show-settings").addEventListener("click", () => openSettings());
+$("show-profile").addEventListener("click", () => openSettings("profile"));
 
 // Adding sessions from the agent's history to the focused domain
 
@@ -1570,6 +1578,18 @@ setupSettings({
   appearance: (appearance) => run("set_appearance", { appearance }),
   shortcuts: (shortcuts) => run("set_shortcuts", { shortcuts }),
   fonts: () => send("fonts", {}),
+});
+setupProfile((profile) => run("set_profile", { profile }));
+setupUsage({
+  usage: () => send("usage", {}),
+  limits: (request) => send("limits", request),
+  agents: AGENTS,
+  agentMark,
+  session: sessionByKey,
+  open: (session) => {
+    closeSettings();
+    openSession(session);
+  },
 });
 setWidth("list", Number(kept("list-width")));
 setWidth("panel", Number(kept("panel-width")));

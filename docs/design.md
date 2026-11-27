@@ -62,14 +62,25 @@ The session list runs down the left, and the map or the terminal fills the rest.
 
 ## Settings
 
-Settings open with ⌘, or from the foot of the list. A change shows at once, and the store keeps it.
+Settings open with ⌘, or from the foot of the list, which shows your name and picture as Claude's desktop app does. A change shows at once, and the store keeps it.
 
 | Page | Content |
 | --- | --- |
+| Profile | Your name and picture, lifetime figures and a year of token activity, as Codex's profile shows them |
 | Appearance | Theme, colour mode (light, dark or follow the system) and interface font |
 | Terminal | Font, size and line height, with a preview |
 | Shortcuts | Every keyboard shortcut. Click a key, then press the new one. A key in use is refused, and Reset puts one back. |
+| Usage | Overview: each agent's plan limits. Analytics: the tokens the agents used on this machine |
 | About | Version, source and licence |
+
+**Profile.** There are no accounts. The name and picture stay in the store on this machine. The figures cover every day the agents' records hold: lifetime tokens, the peak day, days active, and the longest and current streaks of days in use.
+
+**Usage** is in two tabs, as in Codex's app.
+
+- **Overview.** A card per agent with a bar for each window of its plan, how much is used and when it starts again, as the agent itself reports it. Deck never reads an agent's login. Codex records its limits with every reply. Claude Code and Antigravity are asked through their own `/usage` command, which uses no model, when Deck starts and when the page opens, at most every two minutes. A card shows the last answer until the new one comes.
+- **Analytics.** The last 7, 30 or 90 days, or a year a week to a bar, for every agent or one: tokens, replies, the share of input read from the prompt cache, and output; tokens by day stacked by agent, with each agent's share; then the sessions or the models that used the most. A session the agent lists opens on a click.
+
+Each reply counts once. Claude Code writes a reply in parts and copies earlier replies into a resumed session, so a reply counts by its message ID. A forked Codex session begins with a copy of the events before the fork, so an event counts by its time and running total. Deck estimates no cost: prices change, and a plan is not billed by the token.
 
 **Noema**, the default theme, takes its colours from the Noema Kit mark and draws the map as an ink graph: a dot per domain, deeper for recent work, an open ring when empty. **Galaxy** draws domains as stars on a night sky; [its README](../ui/themes/galaxy/README.md) describes it. [Themes](themes.md) says how to make one.
 

@@ -55,6 +55,15 @@ pub enum Command {
         /// The domain's ID or name.
         domain: String,
     },
+    /// Show the tokens each agent used, by model.
+    Usage {
+        /// How many days to count, today included.
+        #[arg(long, default_value_t = 7)]
+        days: u64,
+        /// Ask each agent how much of its plan is used instead.
+        #[arg(long)]
+        limits: bool,
+    },
     /// Edit and inspect domains.
     #[command(subcommand)]
     Domain(DomainCommand),

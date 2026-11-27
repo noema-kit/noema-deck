@@ -10,7 +10,7 @@ use crate::{
     domain::DomainId,
     folder,
     session::{Session, SessionKey},
-    store::{Appearance, OpenPanes, Shortcuts, Store},
+    store::{Appearance, OpenPanes, Profile, Shortcuts, Store},
 };
 
 /// Everything on the map at one moment.
@@ -36,6 +36,8 @@ pub struct Snapshot {
     pub appearance: Appearance,
     /// The shortcuts moved to other keys.
     pub shortcuts: Shortcuts,
+    /// Who uses this copy of Deck.
+    pub profile: Profile,
 }
 
 #[derive(Debug, Serialize)]
@@ -118,6 +120,7 @@ impl Snapshot {
             panes: store.open_panes()?,
             appearance: store.appearance()?,
             shortcuts: store.shortcuts()?,
+            profile: store.profile()?,
         })
     }
 }

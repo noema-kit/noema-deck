@@ -500,6 +500,67 @@ const steps = [
     const named = (await snapshot()).sessions.find((session) => session.title === "Beta renamed");
     expect(named, "the name did not reach the agent's records");
   }],
+  ["Settings › Usage shows each agent's plan limits, as the agent reports them", async () => {
+    $("show-settings").click();
+    $("settings-nav").querySelector('[data-page="usage"]').click();
+    $("usage-tabs").querySelector('[data-tab="overview"]').click();
+    const plan = (name) =>
+      [...$("usage-plans").children].find((card) => card.querySelector("h4").textContent === name)?.textContent ?? "";
+    await until("every agent's answer", () => plan("Antigravity").includes("Weekly · Gemini") && !$("limits-again").disabled);
+    expect(plan("Claude Code").includes("5-hour") && plan("Claude Code").includes("8% used"), `Claude Code's plan read "${plan("Claude Code")}"`);
+    expect(plan("Codex").includes("Weekly") && plan("Codex").includes("25% used"), `Codex's plan read "${plan("Codex")}"`);
+    expect(plan("Antigravity").includes("25% used"), `Antigravity's plan read "${plan("Antigravity")}"`);
+    $("close-settings").click();
+  }],
+  ["Settings › Usage adds up every agent's tokens, by agent and by session", async () => {
+    const stat = (label) =>
+      [...$("usage-stats").querySelectorAll("dt")].find((node) => node.textContent === label)?.previousElementSibling.textContent;
+    const pick = (agent) => {
+      $("usage-agent").value = agent;
+      $("usage-agent").dispatchEvent(new Event("change"));
+    };
+    $("show-settings").click();
+    $("usage-tabs").querySelector('[data-tab="analytics"]').click();
+    await until("the tokens", () => stat("Tokens") === "7.0K");
+    expect(stat("Replies") === "3", `the replies came to ${stat("Replies")}`);
+    expect($("usage-chart").querySelectorAll(".fill").length === 3, "a day's bar did not stack all three agents");
+    expect($("usage-legend").children.length === 3, "the legend did not give each agent's share");
+    const top = $("usage-top").textContent;
+    expect(["Alpha", "Delta", "Epsilon"].every((title) => top.includes(title)), `the sessions were "${top}"`);
+    pick("codex");
+    await until("Codex alone", () => stat("Tokens") === "2.0K");
+    expect(stat("From cache") === "66.7%", `the share from cache was ${stat("From cache")}`);
+    pick("");
+    $("close-settings").click();
+  }],
+  ["the profile keeps a name, shows it at the foot of the list, and adds up every day", async () => {
+    $("show-profile").click();
+    expect(!$("settings").querySelector('section[data-page="profile"]').hidden, "the profile did not open");
+    $("profile-name").value = " Ada Lovelace ";
+    $("profile-name").dispatchEvent(new Event("change"));
+    await until("the name kept", () => state.snapshot.profile?.name === "Ada Lovelace");
+    const foot = `${$("footer-avatar").textContent} ${$("footer-name").textContent}`;
+    expect(foot === "AL Ada Lovelace", `the foot of the list read "${foot}"`);
+    const figure = (label) =>
+      [...$("profile-stats").querySelectorAll("dt")].find((node) => node.textContent === label)?.previousElementSibling.textContent;
+    await until("the lifetime figure", () => figure("Lifetime tokens") === "7.0K");
+    expect(figure("Current streak") === "1 day", `the streak was ${figure("Current streak")}`);
+    expect($("usage-activity").querySelectorAll(".day:not(.shade-0)").length === 1, "the year did not shade today");
+    // A picture chosen is drawn, which the window's content policy must allow.
+    const canvas = Object.assign(document.createElement("canvas"), { width: 40, height: 30 });
+    canvas.getContext("2d").fillRect(0, 0, 40, 30);
+    const chosen = new DataTransfer();
+    chosen.items.add(new File([await new Promise((done) => canvas.toBlob(done, "image/png"))], "me.png", { type: "image/png" }));
+    $("avatar-file").files = chosen.files;
+    $("avatar-file").dispatchEvent(new Event("change"));
+    await until("the picture kept", () => state.snapshot.profile?.avatar?.startsWith("data:image/jpeg;base64,"));
+    const drawn = (id) => $(id).querySelector("img")?.naturalWidth;
+    await until("the picture drawn", () => drawn("avatar-choice") === 256 && drawn("footer-avatar") === 256);
+    expect(!$("avatar-remove").hidden, "there was no way to remove the picture");
+    $("avatar-remove").click();
+    await until("the picture removed", () => !state.snapshot.profile?.avatar && $("footer-avatar").textContent === "AL");
+    $("close-settings").click();
+  }],
 ];
 
 export async function run(hold) {

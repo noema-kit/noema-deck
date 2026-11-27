@@ -32,6 +32,15 @@ pub fn projects_dir() -> Result<PathBuf> {
     Ok(config_dir()?.join("projects"))
 }
 
+/// Claude Code's state file: `.claude.json` in `$CLAUDE_CONFIG_DIR`, else in
+/// the home folder, beside `~/.claude`.
+pub fn state_file() -> Result<PathBuf> {
+    match env::var_os("CLAUDE_CONFIG_DIR") {
+        Some(dir) if !dir.is_empty() => Ok(PathBuf::from(dir).join(".claude.json")),
+        _ => Ok(env::home_dir().context("No home directory")?.join(".claude.json")),
+    }
+}
+
 /// Remembers each transcript as last read. Transcripts run to megabytes and
 /// most sit idle, so listing again reads only the ones that changed.
 #[derive(Default)]
@@ -149,7 +158,7 @@ fn theme(settings: &Path) -> Option<String> {
 
 /// The Claude Code executable: `$NOEMA_DECK_CLAUDE` when set, else `claude`
 /// wherever the `PATH` finds it.
-fn program() -> String {
+pub(crate) fn program() -> String {
     super::program("NOEMA_DECK_CLAUDE", "claude")
 }
 

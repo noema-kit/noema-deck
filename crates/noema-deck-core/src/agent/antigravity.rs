@@ -105,7 +105,7 @@ pub fn for_pane(mut launch: Launch, light: bool) -> Launch {
 
 /// The executable: `$NOEMA_DECK_ANTIGRAVITY` when set, else `agy` wherever
 /// the `PATH` finds it.
-fn program() -> String {
+pub(crate) fn program() -> String {
     super::program("NOEMA_DECK_ANTIGRAVITY", "agy")
 }
 

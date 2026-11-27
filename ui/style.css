@@ -417,6 +417,145 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 .session .remove { padding: 0 6px; font-size: 15px; line-height: 1; }
 .session .remove:hover { color: var(--danger); }
 
+/* Usage: the tokens each agent used. Its colours are the same in every
+   theme, one per agent in a fixed order, checked for colour-blind readers on
+   each theme's surfaces; the shades of the year run light to dark in one hue. */
+
+:root[data-mode="light"] {
+  --agent-claude: #eb6834;
+  --agent-codex: #2a78d6;
+  --agent-antigravity: #1baf7a;
+  --shade-1: #cde2fb;
+  --shade-2: #86b6ef;
+  --shade-3: #3987e5;
+  --shade-4: #1c5cab;
+}
+
+:root[data-mode="dark"] {
+  --agent-claude: #d95926;
+  --agent-codex: #3987e5;
+  --agent-antigravity: #199e70;
+  --shade-1: #104281;
+  --shade-2: #256abf;
+  --shade-3: #5598e7;
+  --shade-4: #9ec5f4;
+}
+
+/* Settings › Profile and Usage, laid out as the matching pages of Claude's
+   and Codex's desktop apps: who you are with lifetime figures and a year of
+   days; then each agent's plan as bars, and the tokens by day, agent, model
+   and session. */
+
+.avatar { display: grid; flex: none; place-items: center; width: 22px; height: 22px; overflow: hidden; border-radius: 50%; background: var(--accent-wash); color: var(--accent); font-size: 10px; font-weight: 600; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar svg { width: 62%; height: 62%; stroke-width: 1.4; }
+#list footer.actions-list { display: flex; align-items: center; gap: 4px; }
+#show-profile { flex: 1; min-width: 0; }
+#show-profile > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#show-settings { display: grid; flex: none; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); }
+#show-settings:hover { background: var(--field); color: var(--ink); }
+
+.identity { display: grid; justify-items: center; gap: 14px; padding: 20px 0 24px; text-align: center; }
+.portrait { position: relative; }
+.avatar.large { width: 88px; height: 88px; padding: 0; border: 0; font-size: 30px; font-weight: 500; cursor: pointer; }
+.avatar.large:hover { box-shadow: 0 0 0 3px var(--accent-line); }
+/* Removing the picture: a small round button on its corner, shown on hover. */
+#avatar-remove { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--muted); box-shadow: var(--shadow); opacity: 0; transition: opacity 0.12s; }
+.portrait:hover #avatar-remove, #avatar-remove:focus-visible { opacity: 1; }
+#avatar-remove:hover { color: var(--danger); }
+#avatar-remove svg { width: 12px; height: 12px; stroke-width: 1.6; }
+#profile-name { width: 320px; height: 36px; border-color: transparent; background: none; font-size: 20px; font-weight: 500; text-align: center; }
+#profile-name:hover { border-color: var(--line); }
+
+.tabs { display: flex; gap: 4px; margin: 4px 0 18px; }
+.tabs button { height: 30px; padding: 0 14px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--muted); }
+.tabs button:hover { color: var(--ink); }
+.tabs button.on { border-color: var(--accent-line); background: var(--field); color: var(--ink); }
+.settings [role=tabpanel] { display: grid; }
+
+.usage-head { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; }
+.usage-head > :is(h3, .note) { flex: 1; }
+.settings h3 + .usage-head, .settings .usage-head:not(:first-child) { margin-top: 32px; }
+.settings .usage-head h3, .settings .usage-head .note { margin: 0; }
+.segmented.small { padding: 2px; border-radius: 8px; }
+.segmented.small button { height: 24px; padding: 0 11px; font-size: 12px; }
+#usage-agent { width: auto; height: 30px; margin-left: auto; padding: 0 8px; border-radius: 8px; font-size: 12.5px; }
+#usage-note:empty { display: none; }
+.settings .more { justify-self: start; height: 28px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--field); color: var(--ink); font-size: 12.5px; }
+.settings .more:hover:not(:disabled) { background: var(--raised); }
+.settings .more:disabled { color: var(--muted); cursor: default; }
+#usage-more { margin-top: 12px; }
+
+.plan { margin-bottom: 14px; padding: 4px 18px; border: 1px solid var(--line); border-radius: 10px; }
+.plan header { display: flex; align-items: center; gap: 10px; height: 48px; }
+.plan header h4 { flex: 1; }
+.settings .plan header .note, .settings .plan > .note { margin: 0; }
+.plan > .note { padding: 0 0 16px; }
+.limit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 1.2fr) 64px; align-items: center; gap: 20px; min-height: 58px; border-top: 1px solid var(--line); }
+.settings .limit .note { margin: 1px 0 0; }
+.limit .used { color: var(--muted); font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.meter { height: 8px; border-radius: 4px; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.meter span { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+.meter.high span { background: var(--danger); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); margin: 0 0 22px; padding: 14px 0; border: 1px solid var(--line); border-radius: 10px; }
+.stats div { padding: 0 6px; text-align: center; }
+.stats div + div { border-left: 1px solid var(--line); }
+.stats dd { margin: 0; font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats dt { margin-top: 2px; color: var(--muted); font-size: 12px; }
+
+.chart { width: 100%; overflow: hidden; }
+/* Until the first figures arrive, the empty pages breathe. */
+.waiting { animation: waiting 1.4s ease-in-out infinite alternate; }
+@keyframes waiting { from { opacity: 1; } to { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .waiting { animation: none; opacity: 0.6; } }
+.chart svg { display: block; }
+.chart .grid { stroke: var(--line); }
+.chart .base { stroke: var(--muted); stroke-opacity: 0.4; }
+.chart .tick { fill: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.chart .hit { fill: transparent; }
+.chart .column:hover .hit { fill: var(--accent-wash); }
+.chart .day:hover { stroke: var(--ink); stroke-width: 1; }
+.shade-0 { fill: var(--field); background: var(--field); box-shadow: inset 0 0 0 0.5px var(--line); }
+.shade-1 { fill: var(--shade-1); background: var(--shade-1); }
+.shade-2 { fill: var(--shade-2); background: var(--shade-2); }
+.shade-3 { fill: var(--shade-3); background: var(--shade-3); }
+.shade-4 { fill: var(--shade-4); background: var(--shade-4); }
+.chart .shade-0 { stroke: var(--line); stroke-width: 0.5; }
+.scale { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 11px; }
+.scale i { width: 9px; height: 9px; border-radius: 2.5px; }
+.scale i:first-of-type { margin-left: 4px; }
+.scale i:last-of-type { margin-right: 4px; }
+.fill.claude, i.claude { fill: var(--agent-claude); background: var(--agent-claude); }
+.fill.codex, i.codex { fill: var(--agent-codex); background: var(--agent-codex); }
+.fill.antigravity, i.antigravity { fill: var(--agent-antigravity); background: var(--agent-antigravity); }
+
+/* Each agent's share, as Codex's analytics list theirs: a bar of its colour,
+   its name, and the share below. */
+.legend { display: flex; flex-wrap: wrap; gap: 12px 40px; margin-top: 14px; }
+.legend span { display: grid; grid-template-columns: 3px auto; column-gap: 10px; color: var(--muted); font-size: 12px; }
+.legend i { grid-row: span 2; border-radius: 2px; }
+.legend b { color: var(--ink); font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+#usage-top { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+#usage-top th { padding: 0 6px 8px; color: var(--muted); font-size: 12px; font-weight: 400; text-align: left; }
+#usage-top th:first-child { width: 52%; padding-left: 0; }
+#usage-top td { height: 40px; padding: 0 6px; border-top: 1px solid var(--line); white-space: nowrap; }
+#usage-top td:first-child { padding-left: 0; }
+#usage-top .number { text-align: right; }
+#usage-top td button { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; }
+#usage-top td button:hover .named > span { color: var(--accent); }
+#usage-top tr.unlisted .named > span, #usage-top tr.none td { color: var(--muted); }
+#usage-top .fine { color: var(--muted); }
+.named { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.named > span { overflow: hidden; text-overflow: ellipsis; }
+
+#usage-tip { position: fixed; z-index: 20; min-width: 150px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); font-size: 12px; pointer-events: none; }
+#usage-tip b { display: block; margin-bottom: 4px; font-weight: 500; }
+#usage-tip p { display: flex; align-items: center; gap: 6px; margin: 2px 0 0; color: var(--muted); }
+#usage-tip i { width: 8px; height: 8px; border-radius: 2px; }
+#usage-tip p span { margin-left: auto; padding-left: 12px; color: var(--ink); }
+
 /* Terminals */
 
 #shell { left: var(--left); right: 0; z-index: 5; flex-direction: row; }

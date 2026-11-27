@@ -1,9 +1,12 @@
 // Settings: a page for each part, in the manner of Claude's desktop app. The
 // look (theme, colour mode, typefaces) shows each change at once, and the core
-// keeps it; the other pages list the shortcuts and what this copy of Deck is.
+// keeps it; the other pages show who uses Deck (`profile.js`), the shortcuts,
+// the agents' usage (`usage.js` draws it and the profile's figures) and what
+// this copy of Deck is.
 
 import { ACTIONS, display, keyOf, pressed, setMoved } from "./keys.js";
 import { apply, look, modeOf, themes, watch } from "./theme.js";
+import { showPage as drawPage } from "./usage.js";
 
 const $ = (id) => document.getElementById(id);
 // What each font menu offers and where its choice is kept: every installed
@@ -244,12 +247,13 @@ function showPage(name) {
   closeMenu();
   recording = null;
   if (name === "shortcuts") drawKeys();
+  for (const section of $("settings").querySelectorAll("section[data-page]")) section.hidden = section.dataset.page !== name;
+  if (name === "usage" || name === "profile") drawPage(name);
   for (const button of $("settings-nav").querySelectorAll("button")) {
     const on = button.dataset.page === name;
     button.classList.toggle("on", on);
     if (on) $("settings-title").textContent = button.textContent.trim();
   }
-  for (const section of $("settings").querySelectorAll("section[data-page]")) section.hidden = section.dataset.page !== name;
 }
 
 /** Opens the settings at `name`, or at the page last shown. */

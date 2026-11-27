@@ -31,7 +31,7 @@ cargo test --workspace
 scripts/selftest.sh
 ```
 
-The self-test opens the real window and drives the map, the session list, terminal panes, a new session, an import, Settings and shortcuts from inside the page. It uses a fixture store, fixture sessions and stand-ins for Claude Code, Codex and Antigravity, so it reads and changes nothing of yours.
+The self-test opens the real window and drives the map, the session list, terminal panes, a new session, an import, Settings with its Profile and Usage pages, and shortcuts from inside the page. It uses a fixture store, fixture sessions with a reply's tokens each, and stand-ins for Claude Code, Codex and Antigravity, so it reads and changes nothing of yours.
 
 ## Release
 
