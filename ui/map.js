@@ -249,7 +249,9 @@ export class MapView {
   }
 
   #resize() {
-    const ratio = Math.min(2, devicePixelRatio || 1);
+    // Zooming the window raises the ratio while the canvas covers the same
+    // screen, so the bound leaves room for the largest zoom on a Retina screen.
+    const ratio = Math.min(4, devicePixelRatio || 1);
     if (ratio !== this.#ratio) this.#painter?.resize?.(ratio);
     [this.#ratio, this.#width, this.#height] = [ratio, this.#canvas.clientWidth, this.#canvas.clientHeight];
     this.#canvas.width = Math.round(this.#width * ratio);

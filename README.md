@@ -57,7 +57,7 @@ cargo run -- --help         # the command-line tool
 
 1. **Add a domain.** Double-click the map. Typing a folder path instead imports the folder's tree.
 2. **Add sessions.** Start a **New session** in a domain with Claude Code, Codex or Antigravity, or bring in past ones with **Add existing**.
-3. **Work.** Click a session to open it. ⌘D splits the pane, ⌘1 and ⌘2 switch between map and terminal, and ⌘, opens Settings.
+3. **Work.** Click a session to open it. ⌘D splits the pane, ⌘1 and ⌘2 switch between map and terminal, ⌘= and ⌘− zoom, and ⌘, opens Settings.
 
 ## How it works
 

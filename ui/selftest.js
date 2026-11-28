@@ -117,11 +117,14 @@ async function addRootDomain(text, x, y) {
   await giveName(text);
 }
 
-/** Presses a key, with the code a keyboard gives it, such as `KeyB` or `Digit1`. */
+/**
+ * Presses a key, with the code a keyboard gives it, such as `KeyB` or
+ * `Digit1`. False when the page took the press, so nothing else acts on it.
+ */
 function key(name, more) {
   const code = /^\d$/.test(name) ? `Digit${name}` : /^[a-z]$/i.test(name) ? `Key${name.toUpperCase()}` : name;
   const event = { key: name, code, bubbles: true, cancelable: true, ...more };
-  (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", event));
+  return (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", event));
 }
 
 // The steps, in the order a person would meet them
@@ -488,6 +491,25 @@ const steps = [
     expect($("tree").hidden && $("tree-head").classList.contains("folded"), `the domains did not fold: ${shown()}`);
     document.querySelector('[data-section="tree"]').click();
     expect(!$("tree").hidden, "the domains did not unfold");
+  }],
+  ["⌘= and ⌘− zoom the window a step at a time, ⌘0 puts it back, and ⇧⌘0 shows every domain", async () => {
+    const zoom = (name, code) => key(name, { code, metaKey: true });
+    if (tauri) {
+      const width = innerWidth;
+      zoom("=", "Equal");
+      await until("the window drawn larger", () => innerWidth < width);
+      // The map is drawn at the screen's pixels, not stretched to them.
+      await until("the map drawn sharp", () => $("map").width === Math.round($("map").clientWidth * devicePixelRatio));
+      zoom("-", "Minus");
+      zoom("-", "Minus");
+      await until("the window drawn smaller", () => innerWidth > width);
+      zoom("0", "Digit0");
+      await until("the window at its actual size", () => innerWidth === width);
+    } else {
+      // A browser zooms its own page, so the page leaves these keys to it.
+      expect(zoom("=", "Equal") && zoom("-", "Minus") && zoom("0", "Digit0"), "the page kept a zoom key from the browser");
+    }
+    expect(!key("0", { metaKey: true, shiftKey: true }), "⇧⌘0 ran nothing");
   }],
   ["a session is renamed by a double click on its row, in the agent's own records", async () => {
     const title = leaf("Beta").querySelector(".title");

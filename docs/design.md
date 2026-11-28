@@ -35,6 +35,7 @@ The session list runs down the left, and the map or the terminal fills the rest.
 
 - **Domain tree.** A domain is a folder, empty while it has no session. A session carries its agent's logo, Claude's, OpenAI's or Antigravity's, and its time; a running one shows its state in the logo's corner. A shell carries a terminal window. A domain with two parents appears under both. A search unfolds everything and keeps what matches. Folding is remembered.
 - **Sizes.** The list, the panel and the dividers between panes drag by their edges and are remembered.
+- **Zoom.** ⌘= and ⌘− draw the whole window larger or smaller, from 67% to 200%, and ⌘0 puts it back, as in Claude's desktop app. The zoom is remembered. In a browser, the browser zooms its own page.
 
 ## Map
 

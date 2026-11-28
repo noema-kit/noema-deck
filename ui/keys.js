@@ -13,9 +13,12 @@ export const ACTIONS = [
   { id: "list", label: "Session list", group: "Window", key: "mod+KeyB" },
   { id: "search", label: "Search sessions", group: "Window", key: "mod+KeyK" },
   { id: "settings", label: "Settings", group: "Window", key: "mod+Comma" },
+  { id: "zoom_in", label: "Zoom in", group: "Window", key: "mod+Equal" },
+  { id: "zoom_out", label: "Zoom out", group: "Window", key: "mod+Minus" },
+  { id: "zoom_reset", label: "Actual size", group: "Window", key: "mod+Digit0" },
   { id: "split_right", label: "Split the pane right", group: "Terminal", key: "mod+KeyD" },
   { id: "split_down", label: "Split the pane down", group: "Terminal", key: "shift+mod+KeyD" },
-  { id: "fit", label: "Show every domain", group: "Map", key: "mod+Digit0" },
+  { id: "fit", label: "Show every domain", group: "Map", key: "shift+mod+Digit0" },
 ];
 
 let moved = {}; // The keys the person chose, by action.

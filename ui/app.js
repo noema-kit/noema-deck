@@ -11,6 +11,8 @@ import { apply, loadThemes, look, watch } from "./theme.js";
 const tauri = window.__TAURI__;
 // The narrowest, usual and widest a part beside the map can be dragged.
 const WIDTHS = { list: [200, 264, 520], panel: [260, 320, 560] };
+// The sizes the window can be zoomed to, as multiples of its actual size.
+const ZOOMS = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 const QUIET = 3000; // Milliseconds without output before an open session counts as quiet.
 const LINGER = 2000; // A pane whose process ends sooner stays up, so what it printed can be read.
 const SETTLE = 5000; // Milliseconds a new pane spends drawing itself before its output counts as news.
@@ -97,6 +99,7 @@ export const state = {
   view: "map", // "map" or "shell".
   listed: true, // Whether the session list is showing.
   widths: { list: WIDTHS.list[1], panel: WIDTHS.panel[1] },
+  zoom: 1, // How large the window is drawn, one of `ZOOMS`.
   focus: null, // ID of the focused domain.
   nested: false, // Whether the panel includes sessions of subdomains.
   query: "",
@@ -1497,6 +1500,13 @@ function locate(pane) {
 
 // Keys
 
+/** Draws the whole window larger or smaller, as Claude's desktop app does, and keeps the size. */
+function zoomTo(level) {
+  state.zoom = level;
+  keep("zoom", level);
+  return tauri.webview.getCurrentWebview().setZoom(level);
+}
+
 /** What each shortcut does. `keys.js` says which key each is on. */
 const SHORTCUTS = {
   map: () => show("map"),
@@ -1505,6 +1515,12 @@ const SHORTCUTS = {
   list: () => showList(!state.listed),
   split_right: () => split("row"),
   split_down: () => split("column"),
+  // A browser zooms its own page, so there it keeps these keys.
+  ...(tauri && {
+    zoom_in: () => zoomTo(ZOOMS[Math.min(ZOOMS.indexOf(state.zoom) + 1, ZOOMS.length - 1)]),
+    zoom_out: () => zoomTo(ZOOMS[Math.max(ZOOMS.indexOf(state.zoom) - 1, 0)]),
+    zoom_reset: () => zoomTo(1),
+  }),
   settings: () => ($("settings").hidden ? openSettings() : closeSettings()),
   search: () => {
     showList(true);
@@ -1591,6 +1607,8 @@ setupUsage({
     openSession(session);
   },
 });
+const zoom = Number(kept("zoom"));
+if (tauri && zoom !== 1 && ZOOMS.includes(zoom)) zoomTo(zoom);
 setWidth("list", Number(kept("list-width")));
 setWidth("panel", Number(kept("panel-width")));
 showList(kept("list") !== "hidden");
