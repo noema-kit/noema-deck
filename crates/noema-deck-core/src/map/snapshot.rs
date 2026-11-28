@@ -31,6 +31,9 @@ pub struct Snapshot {
     /// Keys given to new sessions before their agent chose an ID, each as
     /// `[given, chosen]`.
     pub replaced: Vec<(SessionKey, SessionKey)>,
+    /// Sessions Deck started that their agent has not stored yet, so they
+    /// cannot be opened again.
+    pub waiting: Vec<SessionKey>,
     /// The panes open when Deck last stopped.
     pub panes: OpenPanes,
     pub appearance: Appearance,
@@ -76,6 +79,7 @@ impl Snapshot {
         store: &Store,
         listed: &[Session],
         replaced: &[(SessionKey, SessionKey)],
+        waiting: Vec<SessionKey>,
     ) -> Result<Self> {
         let updated: HashMap<_, _> =
             listed.iter().map(|session| (&session.key, session.updated)).collect();
@@ -117,6 +121,7 @@ impl Snapshot {
             last_folder: store.last_folder()?.as_deref().map(folder::label),
             last_agent: store.last_agent()?,
             replaced: replaced.to_vec(),
+            waiting,
             panes: store.open_panes()?,
             appearance: store.appearance()?,
             shortcuts: store.shortcuts()?,

@@ -511,6 +511,26 @@ const steps = [
     }
     expect(!key("0", { metaKey: true, shiftKey: true }), "⇧⌘0 ran nothing");
   }],
+  ["an agent that keeps its theme is offered a reopen, and comes back in place in the new one", async () => {
+    const mode = async (name) => {
+      $("mode-choice").querySelector(`[data-mode="${name}"]`).click();
+      await until(`the ${name} mode`, () => state.snapshot.appearance.mode === name);
+    };
+    await mode("light");
+    leaf("Alpha").click();
+    await until("Alpha's agent", () => terminal().includes("fake agent --resume"));
+    expect(terminal().includes('"theme":"light"'), `the agent was not given the light theme: ${terminal()}`);
+    const [first] = panes;
+    await mode("dark");
+    await until("the offer to reopen", () => toast().includes("keep their light colours"));
+    $("toast").querySelector("button").click();
+    await until("Alpha again", () => !panes.includes(first) && terminal().includes("fake agent --resume"));
+    expect(!terminal().includes("theme"), "the agent kept the light theme");
+    expect(onScreen() === 1 && panes.length === 1, `${panes.length} panes were open`);
+    await mode("system");
+    panes[0].node.querySelector(".close").click();
+    await until("the map", () => $("shell").hidden);
+  }],
   ["a session is renamed by a double click on its row, in the agent's own records", async () => {
     const title = leaf("Beta").querySelector(".title");
     for (const detail of [1, 2]) title.dispatchEvent(new MouseEvent("click", { bubbles: true, detail }));

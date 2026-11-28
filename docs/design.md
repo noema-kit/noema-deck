@@ -50,14 +50,14 @@ The session list runs down the left, and the map or the terminal fills the rest.
 - **Titles.** The agent's own title or name, else the first prompt, else, for Claude Code, the first command, such as `/login`.
 - **Renaming.** A double click on a row or a pane's title. Deck writes the name where the agent keeps it, as its own renaming does, so both agree.
 - **State.** A pane is active while it writes output and quiet after three seconds. It is ready when it fell quiet with output nobody saw; the terminal button then carries a dot.
-- **Reopening.** Open panes come back at the next start, tiled as they were.
+- **Reopening.** Open panes come back at the next start, tiled as they were. Run again restarts an ended pane in its place.
 
 ## Terminal
 
 - **Panes** run an agent on a session, or the login shell. Splitting a pane opens a shell beside or below it, in the same folder.
 - **Carrying.** Drag a session or a pane's title into the terminal. Near a pane's edge it splits that pane; in the middle it replaces it.
 - **Closing.** A pane closes when its process exits. One that fails within two seconds stays open, so its output can be read.
-- **Colours.** Panes take the theme's sixteen-colour palette for the mode in view. On a light ground, text too faint to read is darkened, as VS Code does; on a dark ground, programs' colours show exactly. Programs that ask, such as Neovim, are told when Deck turns light or dark. Claude Code runs with the light or dark theme that matches.
+- **Colours.** Panes take the theme's sixteen-colour palette for the mode in view. On a light ground, text too faint to read is darkened, as VS Code does; on a dark ground, programs' colours show exactly. Programs that ask, such as Neovim, are told when Deck turns light or dark. Claude Code and Antigravity start with the light or dark theme that matches and keep it, so after a change Deck offers to reopen them on their sessions in the new one.
 - **Environment.** A pane gets the login shell's environment, a UTF-8 locale if the profile sets none, and `TERM_PROGRAM=NoemaDeck`. It drops the variables of the terminal Deck was started from, which would make programs speak that terminal's dialect.
 - **Fonts.** Deck bundles no typeface. A prompt that draws icons needs a font that has them, such as a Nerd Font; the font menu marks these.
 

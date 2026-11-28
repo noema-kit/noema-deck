@@ -139,7 +139,8 @@ impl Map {
     }
 
     pub fn snapshot(&self) -> Result<Snapshot> {
-        Snapshot::of(&self.store, &self.sessions, &self.replaced)
+        let waiting = self.started.iter().map(|started| started.key.clone()).collect();
+        Snapshot::of(&self.store, &self.sessions, &self.replaced, waiting)
     }
 
     /// A session known at the last refresh.
@@ -570,12 +571,14 @@ mod tests {
         let given = plan.key.clone();
         assert!(plan.launch.args.is_empty() && given.id.starts_with(STAND_IN));
         map.record_start(top, plan, PANE, Some("Named"))?;
+        assert_eq!(snapshot(&map)?["waiting"], json!([given]));
         rollout(ELSEWHERE, Path::new("/elsewhere"))?;
         rollout(CHOSEN, &work)?;
         let snapshot = ask(&mut map, "refresh", Value::Null)?;
 
         let chosen = json!({ "agent": "codex", "id": CHOSEN });
         assert_eq!(snapshot["replaced"], json!([[given, chosen]]));
+        assert_eq!(snapshot["waiting"], json!([]));
         assert_eq!(snapshot["domains"][0]["sessions"], json!([chosen]));
         let sessions = snapshot["sessions"].as_array().context("sessions")?;
         let named = sessions.iter().find(|session| session["id"] == CHOSEN).context("chosen")?;

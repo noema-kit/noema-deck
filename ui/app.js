@@ -95,7 +95,7 @@ function icon(name) {
 export const map = new MapView($("map"));
 
 export const state = {
-  snapshot: { domains: [], links: [], sessions: [], missing: [], panes: { open: [], layout: null } },
+  snapshot: { domains: [], links: [], sessions: [], missing: [], waiting: [], panes: { open: [], layout: null } },
   view: "map", // "map" or "shell".
   listed: true, // Whether the session list is showing.
   widths: { list: WIDTHS.list[1], panel: WIDTHS.panel[1] },
@@ -1079,6 +1079,7 @@ let active = null; // The pane that last had the keyboard.
 // `dir` "row" for side by side or "column" for one above another.
 let layout = null;
 let built = ""; // The layout now on the page, as text, so an unchanged one is not built again.
+let serials = 0; // Each pane's own number, which names it in that text.
 
 const leaves = (node) => (!node ? [] : node.pane ? [node.pane] : node.items.flatMap(leaves));
 
@@ -1174,7 +1175,7 @@ function divider(node, at) {
 }
 
 /** The layout as text naming each pane, which says whether the page must be built again. */
-const shape = (node) => (!node ? "" : node.pane ? `${panes.indexOf(node.pane)}` : `${node.dir}(${node.items.map(shape).join(",")})`);
+const shape = (node) => (!node ? "" : node.pane ? `${node.pane.serial}` : `${node.dir}(${node.items.map(shape).join(",")})`);
 
 /** Puts the terminals on screen as the layout tiles them, and keeps the rest running out of sight. */
 function arrange() {
@@ -1339,8 +1340,13 @@ async function startSession(domain, folder, name, agent = "claude") {
 async function launch(pane, command, args) {
   try {
     const { rows, cols } = pane.term;
-    const reply = await paneCall(command, { ...args, rows, cols, light: look.mode === "light" });
-    [pane.id, pane.born] = [reply.pane, Date.now()];
+    const light = look.mode === "light";
+    const reply = await paneCall(command, { ...args, rows, cols, light });
+    if (!panes.includes(pane)) {
+      paneCall("close", { pane: reply.pane }).catch(() => {});
+      return null;
+    }
+    Object.assign(pane, { id: reply.pane, born: Date.now(), light });
     return reply;
   } catch (error) {
     toast(error.message);
@@ -1356,7 +1362,7 @@ function addPane(name, folder, key, agent = key?.split("/")[0]) {
   const sub = el("span", { className: "sub", textContent: folder ?? "" });
   const body = el("div", { className: "term" });
   const gap = el("span", { className: "gap" });
-  const pane = { id: null, key, folder, title, gap, dots: [], ended: false, heard: Date.now(), sent: Promise.resolve() };
+  const pane = { serial: ++serials, id: null, key, folder, title, gap, dots: [], ended: false, heard: Date.now(), sent: Promise.resolve() };
   pane.locate = button("", icon("locate"), "Show on the map", () => locate(pane));
   pane.again = button("", icon("again"), "Run again", () => restart(pane));
   const right = button("", icon("right"), "Split right with a shell", () => split("row", pane));
@@ -1485,11 +1491,43 @@ function hidePane(pane) {
   else arrange();
 }
 
-function restart(pane) {
+/** Runs a pane's session or shell again in a new pane that takes its place, on screen or off. */
+async function restart(pane) {
   const session = sessionByKey(pane.key);
+  if (!panes.includes(pane) || (!session && !pane.shell)) return;
+  const fresh = Object.assign(addPane(paneName(pane), pane.folder, pane.key), { shell: pane.shell, name: pane.name });
+  const spot = leafOf(pane);
+  if (spot) spot.leaf.pane = fresh;
+  if (active === pane) active = fresh;
   closePane(pane);
-  if (session) openSession(session);
-  else if (pane.shell) openShell(pane.folder);
+  const reply = session
+    ? await launch(fresh, "open", { session: refOf(session) })
+    : await launch(fresh, "shell", { folder: pane.folder });
+  if (reply) follow(fresh);
+}
+
+/** Agents that take a light or dark theme when they start, and keep it. */
+const THEMED = new Set(["claude", "antigravity"]);
+
+/**
+ * Offers to reopen the agents that cannot follow Deck turning light or dark,
+ * so they start again on their sessions in the new theme. A reply on its way
+ * or a question waiting would be cut short, so the person chooses when.
+ */
+function offerReopen(mode) {
+  const waiting = new Set(state.snapshot.waiting.map(keyOf));
+  const stale = panes.filter(
+    (pane) =>
+      THEMED.has(pane.key?.split("/")[0]) &&
+      pane.light !== (mode === "light") &&
+      !pane.hears &&
+      !pane.ended &&
+      sessionByKey(pane.key) &&
+      !waiting.has(pane.key),
+  );
+  if (!stale.length) return;
+  const old = mode === "light" ? "dark" : "light";
+  toast(`Open agents keep their ${old} colours`, { label: "Reopen", act: () => stale.forEach(restart) });
 }
 
 function locate(pane) {
@@ -1588,6 +1626,7 @@ watch(({ painter, terminal, mode }) => {
     pane.fit.fit();
     if (pane.hears && shownMode && mode !== shownMode && pane.id !== null && !pane.ended) type(pane, scheme());
   }
+  if (shownMode && mode !== shownMode) offerReopen(mode);
   shownMode = mode;
 });
 setupSettings({
