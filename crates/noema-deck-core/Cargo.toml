@@ -15,6 +15,7 @@ workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 fontdb.workspace = true
+libproc.workspace = true
 ttf-parser.workspace = true
 parking_lot.workspace = true
 portable-pty.workspace = true

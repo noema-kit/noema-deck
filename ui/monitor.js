@@ -13,6 +13,7 @@ const FRAME = 50; // Milliseconds between frames. A chart moves a few pixels a s
 const HEAD = 6; // Pixels a chart keeps free at its right edge, for the dot at the head of each line.
 const BREAK = EVERY * 3; // Readings further apart than this are not joined: the view was away between them.
 const ROWS = [12, 60]; // Rows of the process list, folded and unfolded.
+const PARTIAL = "Only the part in memory now. macOS tells the rest for your own processes alone."; // What memory in lighter ink means.
 /** The process list's columns, each sorted largest first, or names from A. */
 const COLUMNS = [
   ["name", "Process"],
@@ -449,6 +450,9 @@ function drawProcesses() {
     write(pid, process.pid);
     write(cpu, `${process.cpu.toFixed(1)}%`);
     write(held, memory(process.memory));
+    // Of another user's process, macOS tells only the part in memory now.
+    held.classList.toggle("partial", process.partial);
+    held.title = process.partial ? PARTIAL : "";
   });
   $("process-none").hidden = listed.length > 0;
   $("process-more").hidden = rows.length <= ROWS[0];

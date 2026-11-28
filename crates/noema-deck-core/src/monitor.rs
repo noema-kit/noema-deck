@@ -65,8 +65,9 @@ pub struct Cpu {
     pub load: [f64; 3],
 }
 
-/// Memory in bytes. What the system could hand out at once, such as files it
-/// keeps at hand, does not count as used.
+/// Memory in bytes. Used is what programs hold, what the system itself keeps
+/// and what it has compressed, as Activity Monitor counts it. Files kept at
+/// hand, which the system gives up when asked, do not count.
 #[derive(Debug, Serialize)]
 pub struct Memory {
     pub total: u64,
@@ -166,7 +167,6 @@ impl Monitor {
         let rate = |bytes: u64| bytes.saturating_mul(1000) / millis;
 
         let load = System::load_average().unwrap_or_default();
-        let total = self.system.total_memory();
         let mut network = Network { received: 0, sent: 0, total_received: 0, total_sent: 0 };
         // Only interfaces with an address of their own are counted. What goes
         // through a tunnel or the loopback is counted again, or never leaves.
@@ -221,8 +221,8 @@ impl Monitor {
                 load: [load.one, load.five, load.fifteen],
             },
             memory: Memory {
-                total,
-                used: total.saturating_sub(self.system.available_memory()),
+                total: self.system.total_memory(),
+                used: self.system.used_memory(),
                 swap_total: self.system.total_swap(),
                 swap_used: self.system.used_swap(),
             },
@@ -287,6 +287,8 @@ mod tests {
         assert_eq!(own.and_then(|process| process.pane), Some(pane));
         let [load] = &sample.panes[..] else { panic!("the pane has no load: {:?}", sample.panes) };
         assert!(load.pane == pane && load.processes >= 1);
+        // The kernel tells the whole footprint of one's own process.
+        assert!(own.is_some_and(|process| !process.partial && process.memory > 0));
         assert!(load.memory > 0);
         Ok(())
     }

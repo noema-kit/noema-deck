@@ -44,10 +44,12 @@ pub fn print(count: usize) -> Result<()> {
     let network = &sample.network;
     println!("{:9} received {}, sent {}", "Network", rate(network.received), rate(network.sent));
 
-    println!("\n{:>7}  {:16}  {:>6}  {:>8}  Process", "PID", "User", "CPU", "Memory");
+    println!("\n{:>7}  {:16}  {:>6}  {:>9}  Process", "PID", "User", "CPU", "Memory");
     for process in sample.processes.iter().take(count) {
+        // Of another user's process, only the part in memory now is known.
+        let partial = if process.partial { "+" } else { " " };
         println!(
-            "{:>7}  {:16}  {:>5.1}%  {:>8}  {}",
+            "{:>7}  {:16}  {:>5.1}%  {:>8}{partial}  {}",
             process.pid,
             process.user,
             process.cpu,

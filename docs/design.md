@@ -72,7 +72,7 @@ The third view shows what the machine is doing, as an activity monitor does, and
 - **Processes.** The processes of every user, the first twelve or sixty by any column, with a filter by name, owner, number or pane that reaches the rest. One started in a pane is marked with that pane.
 - **Idle cost.** The machine is read only while the view shows in a window in sight.
 
-Memory in use leaves out what the system could hand over at once, such as files it keeps at hand. A process's share is of one processor, so a busy program can pass 100%. Deck ends no process: closing a pane ends what runs in it.
+Memory in use is what programs hold, what the system keeps for itself and what it has compressed, as Activity Monitor counts it; files kept at hand do not count. A process's memory is its whole footprint, compressed and swapped parts included. macOS tells that only for your own processes, so another user's shows the part in memory now, in lighter ink. A process's share is of one processor, so a busy program can pass 100%. Deck ends no process: closing a pane ends what runs in it.
 
 ## Settings
 

@@ -130,14 +130,15 @@ The `monitor` route answers with a `Sample`: the machine as of one reading. Noth
 
 | Part | Read from |
 | --- | --- |
-| Processors, load, memory, swap | The `sysinfo` crate. Memory in use is the total less what the system counts as available |
+| Processors, load, memory, swap | The `sysinfo` crate. Memory in use is its used figure: programs' own pages, wired pages and the compressor's. The total less what it calls available would pass every page in use for free |
 | Graphics | `sysinfo`: the share of time the graphics processor is busy, as its driver reports it |
 | Network | `sysinfo`, over the interfaces with a hardware address. A tunnel's traffic is counted again on the interface that carries it, and the loopback's never leaves |
 | Disks | `sysinfo`. Every volume of a drive reports the drive's traffic, so the busiest volume speaks for the machine. A volume mounted in two parts is listed once |
-| Processes | `ps -A -o pid=,ppid=,user=,rss=,time=,comm=` |
+| Processes | `ps -A -o pid=,ppid=,user=,rss=,time=,comm=`, and the kernel's count of each process's footprint through the `libproc` crate |
 
 - **Rates.** A reading covers the time since the one before, and a rate is the average over it. A reading more than ten seconds after the last starts afresh and measures for half a second, so the first figures back are current, not an average over the time the view was away. One asked for sooner than half a second after the last waits until then, and a volume mounted since the last reading reports no traffic until the next.
 - **Processes.** macOS tells a program nothing about other users' processes, the window server and the system's services among them, but `ps` may read them all. It reports the processor time each has used to a hundredth of a second, and a process's share is what it gained between two readings.
+- **Memory.** `ps` knows only the part of a process resident in memory, which leaves out what the system compressed or swapped out: on the machine this was written on, a language server read 5 MB there against a footprint of 1.3 GB. The kernel tells the footprint, the figure Activity Monitor shows, only of the reader's own processes, which covers everything in a pane. Another user's process keeps the resident figure and is marked partial.
 - **Panes.** Each pane knows the process it runs. A process counts for a pane when that process is among its ancestors, so an agent's tools and a shell's commands count for their pane. One that outlives what started it belongs to the system from then on.
 - **Rows.** A reading changes figures, seldom what there is to show, so the tables keep their rows and take new text. Made again at every reading, the rows of two tables in one redraw sent a scrolled view back to its top in the desktop window's WebKit, though not in Chrome.
 - **Charts.** The interface keeps the last two minutes and draws them on canvases, a frame every fifty milliseconds, shifted one reading back so that a line's end is always between two readings. Readings more than three apart are not joined.

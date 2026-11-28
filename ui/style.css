@@ -634,6 +634,7 @@ body:not(.listed) #monitor > header { padding-left: calc(var(--lights) + var(--c
 .figures-table td { height: 34px; padding: 0 6px; overflow: hidden; border-top: 1px solid var(--line); text-overflow: ellipsis; white-space: nowrap; }
 .figures-table td:first-child { padding-left: 2px; }
 .figures-table .number { text-align: right; }
+.figures-table .partial { color: var(--muted); }
 .figures-table th button { padding: 0; border: 0; background: none; color: inherit; }
 .figures-table th button:hover, .figures-table th button.on { color: var(--ink); }
 .figures-table th button.on::after { content: " ↓"; }

@@ -5,6 +5,11 @@
 //! system's own services, which are often the busiest. `ps` reports the
 //! processor time a process has used so far, so its share of a processor is
 //! the time it used between two readings.
+//!
+//! For memory `ps` knows only the part resident in memory now, which leaves
+//! out what the system has compressed or swapped out, often most of a large
+//! program. The kernel tells the whole footprint, as Activity Monitor shows
+//! it, but only of the reader's own processes.
 
 use std::{
     collections::HashMap,
@@ -13,6 +18,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
+use libproc::pid_rusage::{RUsageInfoV0, pidrusage};
 use serde::Serialize;
 
 use crate::pane::PaneId;
@@ -37,6 +43,9 @@ pub struct Process {
     pub cpu: f64,
     /// The memory it holds, in bytes.
     pub memory: u64,
+    /// Whether that is only the part resident in memory now, which is all
+    /// that can be told of another user's process.
+    pub partial: bool,
     /// The pane it was started in, by that pane's process or one it started.
     pub pane: Option<PaneId>,
 }
@@ -48,6 +57,7 @@ struct Row {
     parent: u32,
     user: String,
     memory: u64,
+    partial: bool,
     /// The processor time used so far, in seconds.
     spent: f64,
     name: String,
@@ -69,9 +79,21 @@ impl Row {
             user: user.into(),
             // `ps` counts memory in units of 1,024 bytes.
             memory: memory.parse::<u64>().ok()? * 1024,
+            partial: true,
             spent: seconds(spent)?,
             name: name.into(),
         })
+    }
+}
+
+impl Row {
+    /// The row with the process's whole footprint, where the kernel tells it.
+    fn whole(mut self) -> Self {
+        let usage = i32::try_from(self.pid).map_err(|_| String::new()).and_then(pidrusage);
+        if let Ok(RUsageInfoV0 { ri_phys_footprint, .. }) = usage {
+            (self.memory, self.partial) = (ri_phys_footprint, false);
+        }
+        self
     }
 }
 
@@ -115,7 +137,7 @@ impl Processes {
         let elapsed = self.read.replace(now).map_or(Duration::ZERO, |read| now - read);
         let text = String::from_utf8_lossy(&output.stdout);
         let rows = text.lines().filter_map(Row::parse).filter(|row| row.pid != own);
-        Ok(self.take(rows, elapsed))
+        Ok(self.take(rows.map(Row::whole), elapsed))
     }
 
     /// Turns a reading into processes, each with the share of a processor it
@@ -139,6 +161,7 @@ impl Processes {
                     // Kept to a tenth of a percent, which is all `ps` can tell.
                     cpu: (cpu * 1000.0).round() / 10.0,
                     memory: row.memory,
+                    partial: row.partial,
                     pane: None,
                 }
             })
@@ -201,6 +224,7 @@ not a process
                 parent: 1,
                 user: "_windowserver".into(),
                 memory: 135_136 * 1024,
+                partial: true,
                 spent: 4294.0 * 60.0 + 34.04,
                 name: "WindowServer".into(),
             }
@@ -239,6 +263,7 @@ not a process
             user: String::new(),
             cpu: 0.0,
             memory: 0,
+            partial: false,
             pane: None,
         };
         // A shell (10) in pane 1 started an agent (11), which started a tool
