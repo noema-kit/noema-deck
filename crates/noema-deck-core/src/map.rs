@@ -53,6 +53,9 @@ struct Started {
     unknown: Option<Unknown>,
 }
 
+/// The start of the key a session has until its agent chooses the ID.
+const STAND_IN: &str = "new-";
+
 /// A session whose agent chooses its ID: it is the first one the agent lists
 /// in its folder that was not listed before it started.
 struct Unknown {
@@ -191,7 +194,7 @@ impl Map {
             listed: listed.map(|session| session.key.id.clone()).collect(),
         };
         // A stand-in until the agent has chosen the ID.
-        let key = SessionKey { agent, id: format!("new-{id}") };
+        let key = SessionKey { agent, id: format!("{STAND_IN}{id}") };
         Ok(Plan { key, launch, unknown: Some(unknown) })
     }
 
@@ -218,6 +221,19 @@ impl Map {
         };
         self.sessions.insert(0, session);
         self.started.push(Started { pane, key, name, unknown });
+        Ok(())
+    }
+
+    /// Drops the sessions an earlier run started that their agents had not
+    /// stored. Their panes ended with that run, so the IDs their agents chose
+    /// can no longer be followed, and they would stay in their domains as
+    /// missing sessions for good.
+    pub fn forget_stand_ins(&mut self) -> Result<()> {
+        for (_, key) in self.store.assignments()? {
+            if key.id.starts_with(STAND_IN) {
+                self.store.forget_session(&key)?;
+            }
+        }
         Ok(())
     }
 
@@ -552,7 +568,7 @@ mod tests {
             Some("Named"),
         )?;
         let given = plan.key.clone();
-        assert!(plan.launch.args.is_empty() && given.id.starts_with("new-"));
+        assert!(plan.launch.args.is_empty() && given.id.starts_with(STAND_IN));
         map.record_start(top, plan, PANE, Some("Named"))?;
         rollout(ELSEWHERE, Path::new("/elsewhere"))?;
         rollout(CHOSEN, &work)?;
@@ -566,6 +582,32 @@ mod tests {
         assert_eq!(named["title"], "Named");
         assert!(sessions.iter().all(|session| session["id"] != json!(given.id)));
         assert_eq!(snapshot["last_agent"], "codex");
+        Ok(())
+    }
+
+    #[test]
+    fn a_session_an_earlier_run_never_saw_stored_is_dropped() -> Result<()> {
+        let folder = tempfile::tempdir()?;
+        let mut earlier = map(folder.path())?;
+        let top = earlier.add_domain("Top", None)?;
+        let work = fs::canonicalize(folder.path())?;
+        let plan =
+            earlier.plan_start(top, Agent::Codex, work.to_str().context("folder name")?, None)?;
+        earlier.record_start(top, plan, PANE, None)?;
+        earlier.store.assign(top, &SessionKey { agent: Agent::Claude, id: LISTED.into() })?;
+        drop(earlier);
+
+        // The next run opens the same store.
+        let mut map = map(folder.path())?;
+        assert_eq!(snapshot(&map)?["missing"].as_array().map(Vec::len), Some(1));
+        map.forget_stand_ins()?;
+
+        let snapshot = snapshot(&map)?;
+        assert_eq!(snapshot["missing"], json!([]));
+        assert_eq!(
+            snapshot["domains"][0]["sessions"],
+            json!([{ "agent": "claude", "id": LISTED }])
+        );
         Ok(())
     }
 

@@ -35,8 +35,10 @@ impl Deck {
         // So is reading every installed font, for Settings.
         thread::spawn(crate::fonts::installed);
         let store = store.map_or_else(store::default_path, |store| Ok(store.to_owned()))?;
+        let mut map = Map::open(&store, Homes::find()?)?;
+        map.forget_stand_ins()?;
         let deck = Self {
-            map: Mutex::new(Map::open(&store, Homes::find()?)?),
+            map: Mutex::new(map),
             panes: Panes::default(),
             usage: Arc::default(),
             asker: Arc::new(Asker::keeping(store.with_file_name("limits.json"))),
