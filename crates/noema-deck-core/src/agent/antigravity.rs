@@ -1,10 +1,9 @@
 //! Antigravity adapter.
 //!
-//! The Antigravity CLI, `agy`, keeps a summary of each conversation in
-//! `<home>/conversation_summaries.db`, the title a conversation was given in
-//! `<home>/annotations/<id>.pbtxt`, and the prompts typed in
-//! `<home>/history.jsonl`. None of these is documented, so only the few fields
-//! read here are relied on.
+//! The Antigravity CLI, `agy`, keeps a summary of each conversation, with its
+//! first message as a preview, in `<home>/conversation_summaries.db`, and the
+//! title a conversation was given in `<home>/annotations/<id>.pbtxt`. Neither
+//! is documented, so only the few fields read here are relied on.
 
 use std::{
     collections::HashMap,
@@ -41,7 +40,6 @@ pub fn sessions(home: &Path) -> Result<Vec<Session>> {
         return Ok(Vec::new());
     }
     let titles = titles(&home.join("annotations"))?;
-    let prompts = prompts(&home.join("history.jsonl"));
     let mut sessions = Vec::new();
     for summary in read_summaries(&summaries)? {
         let Summary { id, title, folder, modified } = summary;
@@ -49,8 +47,7 @@ pub fn sessions(home: &Path) -> Result<Vec<Session>> {
         let Ok(metadata) = fs::metadata(home.join(format!("conversations/{id}.db"))) else {
             continue;
         };
-        let title = titles.get(&id).cloned().or(title).or_else(|| prompts.get(&id).cloned());
-        let Some(title) = title else { continue };
+        let Some(title) = titles.get(&id).cloned().or(title) else { continue };
         let written = metadata.modified()?.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO);
         let written = i64::try_from(written.as_secs()).unwrap_or(0);
         let key = SessionKey { agent: Agent::Antigravity, id };
@@ -112,6 +109,9 @@ pub(crate) fn program() -> String {
 /// What a summary says about its conversation.
 struct Summary {
     id: String,
+    /// The title `agy` gave it, else the first line of its first message.
+    /// A new conversation has only the message, which must be enough for
+    /// Deck to recognise the session it started.
     title: Option<String>,
     folder: Option<PathBuf>,
     /// When it last changed, in seconds since the epoch, or 0 if unknown.
@@ -127,24 +127,25 @@ fn read_summaries(file: &Path) -> Result<Vec<Summary>> {
     connection.busy_timeout(Duration::from_millis(500))?;
     let mut statement = connection
         .prepare(
-            "SELECT conversation_id, title, workspace_uris, CAST(last_modified_time AS TEXT)
+            "SELECT conversation_id, title, preview, workspace_uris, CAST(last_modified_time AS TEXT)
              FROM conversation_summaries
              WHERE step_count > 0 AND parent_conversation_id = '' AND nesting_depth = 0",
         )
         .with_context(unread)?;
     let rows = statement.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get(1)?, row.get::<_, String>(2)?, row.get(3)?))
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
     })?;
     let mut summaries = Vec::new();
     for row in rows {
-        let (id, title, folders, modified): (String, String, String, String) =
+        let (id, title, preview, folders, modified): (String, String, String, String, String) =
             row.with_context(unread)?;
+        let title = clean_title(&title).or_else(|| preview.lines().find_map(clean_title));
         let folder = serde_json::from_str::<Vec<String>>(&folders)
             .ok()
             .and_then(|uris| uris.iter().find_map(|uri| local_path(uri)));
         let modified = DateTime::parse_from_str(&modified, "%Y-%m-%d %H:%M:%S%.f%:z")
             .map_or(0, |time| time.timestamp().max(0));
-        summaries.push(Summary { id, title: clean_title(&title), folder, modified });
+        summaries.push(Summary { id, title, folder, modified });
     }
     Ok(summaries)
 }
@@ -185,28 +186,6 @@ fn titles(annotations: &Path) -> Result<HashMap<String, String>> {
         }
     }
     Ok(titles)
-}
-
-/// The first prompt typed in each conversation, by conversation. Commands
-/// such as `/model` are not prompts.
-fn prompts(history: &Path) -> HashMap<String, String> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Typed {
-        display: String,
-        conversation_id: Option<String>,
-        #[serde(rename = "type")]
-        kind: Option<String>,
-    }
-    let mut prompts = HashMap::new();
-    let text = fs::read_to_string(history).unwrap_or_default();
-    for typed in text.lines().filter_map(|line| serde_json::from_str::<Typed>(line).ok()) {
-        let (Some(id), None) = (typed.conversation_id, typed.kind) else { continue };
-        if let Some(line) = typed.display.lines().find_map(clean_title) {
-            prompts.entry(id).or_insert(line);
-        }
-    }
-    prompts
 }
 
 /// The span and value of the top-level `title` field of a text-format
@@ -353,20 +332,22 @@ mod tests {
     const AGENT: &str = "7c5d4b30-0000-4000-8000-000000000000";
 
     /// A summaries table with the columns Deck reads, and the rest as `agy` has them.
-    fn summaries(home: &Path, rows: &[(&str, &str, &str, i64, &str, &str)]) -> Result<()> {
+    fn summaries(home: &Path, rows: &[(&str, &str, &str, &str, i64, &str, &str)]) -> Result<()> {
         let connection = Connection::open(home.join(SUMMARIES))?;
         connection.execute_batch(
             "CREATE TABLE conversation_summaries (conversation_id text, title text NOT NULL DEFAULT '',
-             step_count integer NOT NULL DEFAULT 0, last_modified_time datetime NOT NULL,
+             preview text NOT NULL DEFAULT '', step_count integer NOT NULL DEFAULT 0,
+             last_modified_time datetime NOT NULL,
              workspace_uris text NOT NULL, parent_conversation_id text NOT NULL DEFAULT '',
              nesting_depth integer NOT NULL DEFAULT 0, PRIMARY KEY (conversation_id))",
         )?;
-        for (id, title, folder, steps, time, parent) in rows {
+        for (id, title, preview, folder, steps, time, parent) in rows {
             connection.execute(
-                "INSERT INTO conversation_summaries VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO conversation_summaries VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 rusqlite::params![
                     id,
                     title,
+                    preview,
                     steps,
                     time,
                     json!([format!("file://{folder}")]).to_string(),
@@ -387,19 +368,21 @@ mod tests {
         summaries(
             home.path(),
             &[
-                (FIRST, "Quick Status Check", "/Work%20Space", 1, late, ""),
-                (SECOND, "", "/work", 2, "0001-01-01 00:00:00+00:00", ""),
-                (EMPTY, "", "/work", 0, late, ""),
-                (AGENT, "Helper", "/work", 3, late, FIRST),
+                (FIRST, "Quick Status Check", "Hello", "/Work%20Space", 1, late, ""),
+                // A new conversation has no title yet, only its first message.
+                (
+                    SECOND,
+                    "",
+                    "\n  Check the account\nplease",
+                    "/work",
+                    2,
+                    "0001-01-01 00:00:00+00:00",
+                    "",
+                ),
+                (EMPTY, "", "", "/work", 0, late, ""),
+                (AGENT, "Helper", "Help", "/work", 3, late, FIRST),
             ],
         )?;
-        let history = [
-            json!({ "display": "/model", "timestamp": 1, "workspace": "/work", "type": "slash_command", "conversationId": SECOND }),
-            json!({ "display": "\n  Check the account\nplease", "timestamp": 2, "workspace": "/work", "conversationId": SECOND }),
-            json!({ "display": "Later", "timestamp": 3, "workspace": "/work", "conversationId": SECOND }),
-        ];
-        let lines: Vec<_> = history.iter().map(ToString::to_string).collect();
-        fs::write(home.path().join("history.jsonl"), lines.join("\n"))?;
 
         let mut sessions = sessions(home.path())?;
         sessions.sort_by_key(|session| std::cmp::Reverse(session.updated));
@@ -421,7 +404,7 @@ mod tests {
         let home = tempfile::tempdir()?;
         summaries(
             home.path(),
-            &[(FIRST, "Generated", "/work", 1, "2026-11-27 13:43:08+00:00", "")],
+            &[(FIRST, "Generated", "Hello", "/work", 1, "2026-11-27 13:43:08+00:00", "")],
         )?;
         let annotation = home.path().join(format!("annotations/{FIRST}.pbtxt"));
         assert_eq!(rename(home.path(), FIRST, "  Deck\n \"rename\"\u{7} ")?, "Deck \"rename\"");

@@ -47,17 +47,19 @@ printf '{"timestamp":"%s","type":"event_msg","payload":{"type":"token_count","in
     >> "$day/rollout-2026-11-26T10-00-00-01a20000-0000-7000-8000-000000000001.jsonl"
 
 # An Antigravity conversation: its summary, where `agy` lists it, and its file.
+# As in `agy`, a new conversation has no title, only its first message.
 agy="$work/antigravity"
 mkdir -p "$agy/conversations"
 sqlite3 "$agy/conversation_summaries.db" "CREATE TABLE conversation_summaries (
     conversation_id text PRIMARY KEY, title text NOT NULL DEFAULT '',
-    step_count integer NOT NULL DEFAULT 0, last_modified_time datetime NOT NULL,
-    workspace_uris text NOT NULL, parent_conversation_id text NOT NULL DEFAULT '',
+    preview text NOT NULL DEFAULT '', step_count integer NOT NULL DEFAULT 0,
+    last_modified_time datetime NOT NULL, workspace_uris text NOT NULL,
+    parent_conversation_id text NOT NULL DEFAULT '',
     nesting_depth integer NOT NULL DEFAULT 0)"
 cat > "$work/conversation" <<EOF
 #!/bin/sh
 sqlite3 "$agy/conversation_summaries.db" "INSERT INTO conversation_summaries
-    (conversation_id, title, step_count, last_modified_time, workspace_uris)
+    (conversation_id, preview, step_count, last_modified_time, workspace_uris)
     VALUES ('\$1', '\$3', 1, '2026-11-27 10:00:00+00:00', '[\"file://\$2\"]')"
 : > "$agy/conversations/\$1.db"
 EOF

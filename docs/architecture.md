@@ -159,7 +159,7 @@ Read from Codex 0.171.0 on macOS. `CODEX_HOME` moves the folder, as it does for 
 | Action | Interface |
 | --- | --- |
 | List | Conversation summaries in the SQLite file `~/.gemini/antigravity-cli/conversation_summaries.db`, read only. Only conversations with a step and a file in `conversations/`, as `agy`'s `/resume` lists them, not sub-agents |
-| Title | `title` in the conversation's annotations, `annotations/<id>.pbtxt`, else the summary's title, else the first prompt typed in `history.jsonl`. A conversation with none is left out |
+| Title | `title` in the conversation's annotations, `annotations/<id>.pbtxt`, else the summary's title, else the first line of the summary's `preview`, its first message. A new conversation has only the preview, so Deck recognises the session it started from its first message |
 | Rename | Set `title` in the annotations, where `agy` keeps the names given to conversations and copies them into its summaries |
 | Folder | First `file://` URI in the summary's `workspace_uris` |
 | Last activity | The later of the summary's time and the conversation file's modification time |
