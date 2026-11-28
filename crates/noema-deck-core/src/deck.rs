@@ -1,5 +1,5 @@
-//! One running Deck: the map and the shell panes, shared by every window
-//! and connection.
+//! One running Deck: the map, the shell panes and the machine's activity,
+//! shared by every window and connection.
 
 use std::{path::Path, sync::Arc, thread, time::Duration};
 
@@ -10,6 +10,7 @@ use crate::{
     agent::{self, Agent, Homes},
     folder,
     map::{self, Map, Snapshot},
+    monitor::{Monitor, Sample},
     pane::{self, Panes, login_environment},
     store,
     usage::{Asker, Ledger, LimitsRequest, Plan, Report},
@@ -23,6 +24,8 @@ pub struct Deck {
     panes: Panes,
     usage: Arc<Mutex<Ledger>>,
     asker: Arc<Asker>,
+    /// Set up when the machine's activity is first asked for.
+    monitor: Mutex<Option<Monitor>>,
 }
 
 impl Deck {
@@ -42,6 +45,7 @@ impl Deck {
             panes: Panes::default(),
             usage: Arc::default(),
             asker: Arc::new(Asker::keeping(store.with_file_name("limits.json"))),
+            monitor: Mutex::default(),
         };
         // So Settings opens on figures at hand: the agents' records are read,
         // and the agents asked for their limits, while nobody is waiting.
@@ -81,6 +85,19 @@ impl Deck {
                 vec![claude, codex()?, antigravity]
             }
         })
+    }
+
+    /// What the machine is doing now, and what each open pane's processes add
+    /// up to. Readings are taken one at a time, each covering the time since
+    /// the last.
+    pub fn monitor(&self) -> Result<Sample> {
+        let panes = self.panes.processes();
+        let mut monitor = self.monitor.lock();
+        let monitor = match &mut *monitor {
+            Some(monitor) => monitor,
+            unset => unset.insert(Monitor::new()?),
+        };
+        monitor.sample(&panes)
     }
 
     /// Answers a request about a pane. The map is held only for a moment

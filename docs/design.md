@@ -1,6 +1,6 @@
 # Design
 
-Deck sorts Claude Code, Codex and Antigravity sessions by domain and runs them in terminal panes. [Architecture](architecture.md) says how it is built.
+Deck sorts Claude Code, Codex and Antigravity sessions by domain, runs them in terminal panes, and shows what the machine is doing meanwhile. [Architecture](architecture.md) says how it is built.
 
 ## Principles
 
@@ -24,7 +24,7 @@ Deck sorts Claude Code, Codex and Antigravity sessions by domain and runs them i
 
 ## Window
 
-The session list runs down the left, and the map or the terminal fills the rest. As in Claude's and Codex's desktop apps there is no top bar: the window's buttons, the list toggle and the map/terminal switch sit together at the top left. The empty parts of the headers drag the window.
+The session list runs down the left, and the map, the terminal or the monitor fills the rest. As in Claude's and Codex's desktop apps there is no top bar: the window's buttons, the list toggle and the three views sit together at the top left. The empty parts of the headers drag the window.
 
 | Part | Content |
 | --- | --- |
@@ -32,6 +32,7 @@ The session list runs down the left, and the map or the terminal fills the rest.
 | Map | Domains and links, with pan and zoom. Size follows the session count, colour follows recency over three months. |
 | Domain panel | The selected domain's name, parents, subdomains and sessions. |
 | Terminal | Panes tiled in rows and columns. Panes out of sight keep running. |
+| Monitor | The machine's processors, memory, graphics, network and disks, the open panes and the processes. |
 
 - **Domain tree.** A domain is a folder, empty while it has no session. A session carries its agent's logo, Claude's, OpenAI's or Antigravity's, and its time; a running one shows its state in the logo's corner. A shell carries a terminal window. A domain with two parents appears under both. A search unfolds everything and keeps what matches. Folding is remembered.
 - **Sizes.** The list, the panel and the dividers between panes drag by their edges and are remembered.
@@ -60,6 +61,18 @@ The session list runs down the left, and the map or the terminal fills the rest.
 - **Colours.** Panes take the theme's sixteen-colour palette for the mode in view. On a light ground, text too faint to read is darkened, as VS Code does; on a dark ground, programs' colours show exactly. Programs that ask, such as Neovim, are told when Deck turns light or dark. Claude Code and Antigravity start with the light or dark theme that matches and keep it, so after a change Deck offers to reopen them on their sessions in the new one. Until then their text is shifted until it reads on the new ground, and their pane keeps a button that reopens it.
 - **Environment.** A pane gets the login shell's environment, a UTF-8 locale if the profile sets none, and `TERM_PROGRAM=NoemaDeck`. It drops the variables of the terminal Deck was started from, which would make programs speak that terminal's dialect.
 - **Fonts.** Deck bundles no typeface. A prompt that draws icons needs a font that has them, such as a Nerd Font; the font menu marks these.
+
+## Monitor
+
+The third view shows what the machine is doing, as an activity monitor does, and what Deck's own panes cost.
+
+- **Cards.** Processors, with a bar for each one and the load; memory in use, with swap; the graphics processor; bytes received and sent; bytes read and written, with how full each volume is. Each draws the last two minutes, and a point under the pointer says what it was.
+- **Motion.** A reading is taken every two seconds, and each line glides one reading behind, so it moves steadily. With reduced motion asked for, a chart is drawn once a reading and stands still between.
+- **Panes.** Each open pane with what its processes add up to: the agent or shell it runs, and everything started under it. A row opens its pane.
+- **Processes.** The processes of every user, the first twelve or sixty by any column, with a filter by name, owner, number or pane that reaches the rest. One started in a pane is marked with that pane.
+- **Idle cost.** The machine is read only while the view shows in a window in sight.
+
+Memory in use leaves out what the system could hand over at once, such as files it keeps at hand. A process's share is of one processor, so a busy program can pass 100%. Deck ends no process: closing a pane ends what runs in it.
 
 ## Settings
 

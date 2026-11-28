@@ -1,5 +1,6 @@
 //! Noema Deck from the command line: list sessions, edit domains, assign sessions
-//! on them, count the tokens used, and serve the map to a browser.
+//! on them, count the tokens used, show what the machine is doing, and serve the
+//! map to a browser.
 //!
 //! The desktop app parses the same [`Cli`] and hands any command to [`run`], so
 //! one program is both the window and the command-line tool.
@@ -7,6 +8,7 @@
 mod cli;
 mod domains;
 mod find;
+mod monitor;
 mod print;
 mod serve;
 mod sessions;
@@ -32,6 +34,7 @@ pub fn run(store: Option<&Path>, command: Command) -> Result<()> {
         Command::Unassign { session, domain } => sessions::unassign(&mut map()?, &session, &domain),
         Command::Usage { limits: true, .. } => usage::limits(),
         Command::Usage { days, .. } => usage::print(days),
+        Command::Monitor { processes } => monitor::print(processes),
         Command::Domain(command) => domains::run(&mut map()?, command),
         Command::Serve { port, ui } => serve::run(Deck::open(store)?, &ui, port),
     }

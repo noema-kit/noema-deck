@@ -43,7 +43,7 @@ pub(crate) fn shell(folder: &Path) -> Result<Launch> {
 }
 
 /// A pane's identity for as long as Deck runs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PaneId(u32);
 
@@ -68,6 +68,8 @@ struct Pane {
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     killer: Box<dyn ChildKiller + Send + Sync>,
     output: Arc<Output>,
+    /// The process the pane runs, when the system names it.
+    process: Option<u32>,
 }
 
 impl Panes {
@@ -95,6 +97,7 @@ impl Panes {
             )),
             killer: child.clone_killer(),
             output: Arc::clone(&output),
+            process: child.process_id(),
             master: pair.master,
         };
         let reader = pane.master.try_clone_reader().map_err(|error| anyhow!(error))?;
@@ -128,6 +131,15 @@ impl Panes {
         if let Some(pane) = self.open.lock().remove(&pane) {
             thread::spawn(move || drop(pane));
         }
+    }
+
+    /// The process each open pane runs, which everything started in the pane
+    /// descends from. A pane whose process has ended has none: the system
+    /// may give its number to another.
+    pub fn processes(&self) -> Vec<(PaneId, u32)> {
+        let open = self.open.lock();
+        let running = open.iter().filter(|(_, pane)| !pane.output.ended());
+        running.filter_map(|(id, pane)| Some((*id, pane.process?))).collect()
     }
 
     fn with<T>(&self, pane: PaneId, act: impl FnOnce(&mut Pane) -> Result<T>) -> Result<T> {

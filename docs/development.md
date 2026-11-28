@@ -8,6 +8,7 @@ Requires Rust 1.95, which `rust-toolchain.toml` selects, and Claude Code, Codex 
 cargo run -p noema-deck         # the desktop window
 cargo run -- serve              # the same map at http://127.0.0.1:4270
 cargo run -- sessions           # any command, without the window
+cargo run -- monitor            # what the machine is doing, once
 ```
 
 Plain `cargo` commands leave the window out, because it pulls in a web view. Name it with `-p noema-deck`, or use `--workspace`. The first build takes a few minutes, because development builds optimise the core and every dependency.
@@ -31,7 +32,7 @@ cargo test --workspace
 scripts/selftest.sh
 ```
 
-The self-test drives the map, the session list, terminal panes, a new session, an import, Settings with its Profile and Usage pages, and shortcuts from inside the page. It uses a fixture store, fixture sessions with a reply's tokens each, and stand-ins for Claude Code, Codex and Antigravity, so it reads and changes nothing of yours.
+The self-test drives the map, the session list, terminal panes, the monitor, a new session, an import, Settings with its Profile and Usage pages, and shortcuts from inside the page. It uses a fixture store, fixture sessions with a reply's tokens each, and stand-ins for Claude Code, Codex and Antigravity, so it changes nothing of yours, and reads only what this machine is doing, for the monitor.
 
 By default the local server gives the page to a headless Chrome, so no window opens and nothing takes your focus; `CHROME` names another Chromium browser. `scripts/selftest.sh window` runs it in the real desktop window instead, which also proves what only the window does: its commands, its version and zooming. Run that before a release.
 

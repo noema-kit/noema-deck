@@ -36,11 +36,13 @@ button { cursor: pointer; }
 
 /* Layout: what the docked plates leave free */
 
-body { --top: 40px; --lights: 10px; --list: 264px; --panel: 320px; --left: 0px; --right: 0px; }
+body { --top: 40px; --lights: 10px; --chrome: 130px; --list: 264px; --panel: 320px; --left: 0px; --right: 0px; }
 body.listed { --left: var(--list); }
 body.focused { --right: var(--panel); }
-/* The desktop window on macOS draws its three buttons at the left of the top bar. */
-body.overlaid { --lights: 80px; }
+/* The desktop window on macOS draws its three buttons at the left of the top
+   bar. They keep their size when the page is zoomed, so the room they take on
+   the page shrinks as it grows. */
+body.overlaid { --lights: calc(80px / var(--zoom, 1)); }
 
 /* The map */
 
@@ -74,7 +76,7 @@ body.overlaid { --lights: 80px; }
 /* Plates: solid rather than blurred glass. A blur is worked out again on every
    frame the map moves, and a clear plate lets the names behind it show through. */
 
-#list, #panel, #shell {
+#list, #panel, #shell, #monitor {
   position: fixed;
   top: 0;
   bottom: 0;
@@ -85,7 +87,7 @@ body.overlaid { --lights: 80px; }
 
 /* No bar runs across the window. As in Claude's and Codex's desktop apps, the
    session list takes the full height, and the window's buttons, the list's
-   toggle and the two views sit together at its top left, staying there when the
+   toggle and the three views sit together at its top left, staying there when the
    list is hidden. The strip above the map and the empty parts of headers drag
    the window. */
 #chrome {
@@ -96,6 +98,7 @@ body.overlaid { --lights: 80px; }
   display: flex;
   align-items: center;
   gap: 2px;
+  width: var(--chrome);
   height: var(--top);
 }
 
@@ -113,10 +116,12 @@ body.overlaid { --lights: 80px; }
   color: var(--muted);
 }
 
+/* Four buttons in a row short enough for a narrow list to hold. */
+#chrome button { width: 30px; height: 30px; }
 #chrome button:hover, #top button:hover { background: var(--raised); color: var(--ink); }
 #chrome button.on { color: var(--accent); }
 #chrome button svg, #top button svg { width: 18px; height: 18px; stroke-width: 1.3; }
-#toggle-list { margin-right: 6px; }
+#toggle-list { margin-right: 4px; }
 /* A session finished out of sight. */
 #chrome button.ready::after {
   position: absolute;
@@ -145,7 +150,7 @@ body.overlaid { --lights: 80px; }
 
 body:not(.on-map) #top { display: none; }
 /* Without the list, the strip starts after the buttons at the top left. */
-body:not(.listed) #top { left: calc(var(--lights) + 116px); }
+body:not(.listed) #top { left: calc(var(--lights) + var(--chrome) + 10px); }
 
 #list { left: 0; z-index: 6; width: var(--list); border-right: 1px solid var(--line); }
 body:not(.listed) #list { display: none; }
@@ -484,8 +489,8 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 .segmented.small button { height: 24px; padding: 0 11px; font-size: 12px; }
 #usage-agent { width: auto; height: 30px; margin-left: auto; padding: 0 8px; border-radius: 8px; font-size: 12.5px; }
 #usage-note:empty { display: none; }
-.settings .more { justify-self: start; height: 28px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--field); color: var(--ink); font-size: 12.5px; }
-.settings .more:hover:not(:disabled) { background: var(--raised); }
+.settings .more, #monitor .more { justify-self: start; height: 28px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--field); color: var(--ink); font-size: 12.5px; }
+.settings .more:hover:not(:disabled), #monitor .more:hover { background: var(--raised); }
 .settings .more:disabled { color: var(--muted); cursor: default; }
 #usage-more { margin-top: 12px; }
 
@@ -553,11 +558,96 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 .named { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .named > span { overflow: hidden; text-overflow: ellipsis; }
 
-#usage-tip { position: fixed; z-index: 20; min-width: 150px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); font-size: 12px; pointer-events: none; }
-#usage-tip b { display: block; margin-bottom: 4px; font-weight: 500; }
-#usage-tip p { display: flex; align-items: center; gap: 6px; margin: 2px 0 0; color: var(--muted); }
-#usage-tip i { width: 8px; height: 8px; border-radius: 2px; }
-#usage-tip p span { margin-left: auto; padding-left: 12px; color: var(--ink); }
+#usage-tip, #monitor-tip { position: fixed; z-index: 20; min-width: 150px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); font-size: 12px; pointer-events: none; }
+#usage-tip b, #monitor-tip b { display: block; margin-bottom: 4px; font-weight: 500; }
+#usage-tip p, #monitor-tip p { display: flex; align-items: center; gap: 6px; margin: 2px 0 0; color: var(--muted); }
+#usage-tip i, #monitor-tip i { width: 8px; height: 8px; border-radius: 2px; }
+#usage-tip p span, #monitor-tip p span { margin-left: auto; padding-left: 12px; color: var(--ink); }
+
+/* Monitor: what the machine is doing. A card for each part of it, drawn over
+   the last two minutes, then the open panes and every process. Its two series
+   take the first two colours of the usage charts, which are told apart on
+   every theme's surfaces: one for what comes in, one for what goes out. */
+
+:root { --series-in: var(--agent-codex); --series-out: var(--agent-claude); }
+
+#monitor { left: var(--left); right: 0; z-index: 5; container-type: inline-size; }
+#monitor > header { display: flex; flex: none; align-items: baseline; gap: 10px; height: var(--top); padding: 11px 18px 0; white-space: nowrap; }
+body:not(.listed) #monitor > header { padding-left: calc(var(--lights) + var(--chrome) + 14px); }
+#monitor > header .title { font: 500 calc(15px * var(--display-size)) var(--font-display); pointer-events: none; }
+#monitor .sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 12px; pointer-events: none; }
+#monitor-body { flex: 1; min-height: 0; padding: 6px 18px 28px; overflow-y: auto; }
+#monitor-note { margin: 0 0 10px; color: var(--danger); }
+#monitor-note:empty { display: none; }
+
+#gauges { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.gauge { display: flex; flex-direction: column; grid-column: span 2; gap: 10px; min-width: 0; padding: 14px 16px 16px; border: 1px solid var(--line); border-radius: 10px; }
+.gauge.wide, #gauges.two .gauge { grid-column: span 3; }
+@container (max-width: 860px) {
+  .gauge { grid-column: span 3; }
+  #gauges:not(.two) .gauge:last-child { grid-column: span 6; }
+}
+@container (max-width: 520px) {
+  #gauges .gauge { grid-column: span 6; }
+}
+.gauge header { display: flex; align-items: baseline; gap: 10px; }
+.gauge h3 { flex: none; margin: 0; letter-spacing: 0.02em; }
+.gauge header .sub { margin-left: auto; }
+.figures { display: flex; align-items: baseline; gap: 12px; height: 46px; margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.figures b { font-size: 26px; font-weight: 500; line-height: 46px; }
+.figures .aside { margin-left: auto; color: var(--muted); font-size: 12px; white-space: pre; }
+/* Two figures side by side, each under the colour and name of its line. */
+.figures > span:not(.aside) { display: grid; flex: 1; align-content: space-between; align-self: stretch; min-width: 0; }
+.figures > span b { font-size: 19px; line-height: 1.2; }
+.figures small { color: var(--muted); font-size: 12px; }
+.key { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 2px; }
+.figures .key { margin-right: 6px; }
+.key.in { background: var(--series-in); }
+.key.out { background: var(--series-out); }
+
+.plot { position: relative; flex: 1; min-height: 88px; }
+.plot canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* What the top of a chart of rates stands for, which moves with the traffic. */
+.plot .ceiling { position: absolute; top: 0; left: 0; color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; pointer-events: none; }
+
+/* Each processor as a bar that rises with its load. */
+.cores { display: flex; gap: 3px; height: 31px; }
+.cores i { display: flex; flex: 1; align-items: flex-end; min-width: 0; overflow: hidden; border-radius: 3px; background: var(--field); }
+.cores b { width: 100%; border-radius: 2px 2px 0 0; background: var(--series-in); transition: height 600ms ease; }
+/* A store and how full it is: its name and figures, over a bar. */
+.volume { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; font-size: 12.5px; }
+.volume + .volume { margin-top: 10px; }
+.volume > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.volume .meter { grid-column: 1 / -1; height: 6px; }
+.volume .meter span { transition: width 600ms ease; }
+.fine { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .cores b, .volume .meter span { transition: none; } }
+
+.monitor-head { display: flex; align-items: center; gap: 10px; margin: 28px 2px 12px; }
+.monitor-head h3 { flex: 1; margin: 0; color: var(--ink); font: 500 14px/1 var(--font-ui); }
+.monitor-head h3 small { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+#process-search { width: 180px; height: 30px; border-radius: 8px; font-size: 12.5px; }
+
+.figures-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.figures-table th { padding: 0 6px 8px; color: var(--muted); font-size: 12px; font-weight: 400; text-align: left; }
+.figures-table th:first-child { width: 44%; padding-left: 2px; }
+.figures-table td { height: 34px; padding: 0 6px; overflow: hidden; border-top: 1px solid var(--line); text-overflow: ellipsis; white-space: nowrap; }
+.figures-table td:first-child { padding-left: 2px; }
+.figures-table .number { text-align: right; }
+.figures-table th button { padding: 0; border: 0; background: none; color: inherit; }
+.figures-table th button:hover, .figures-table th button.on { color: var(--ink); }
+.figures-table th button.on::after { content: " ↓"; }
+.figures-table th[aria-sort="ascending"] button.on::after { content: " ↑"; }
+.figures-table td button { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; }
+.figures-table td button:hover .named > span { color: var(--accent); }
+#process-none { margin: 0; padding: 8px 2px; border-top: 1px solid var(--line); }
+.figures-table .named svg.agent { flex: none; }
+/* The pane a process was started in. */
+.figures-table .chip { flex: none; max-width: 46%; font: 400 12px/1.7 var(--font-ui); }
+.figures-table .chip .named { gap: 5px; }
+.figures-table .chip svg.agent { width: 12px; height: 12px; }
+#process-more { margin-top: 12px; }
+#monitor-tip .key { margin: 0; }
 
 /* Terminals */
 
@@ -579,7 +669,7 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 
 .pane header { display: flex; flex: none; align-items: center; gap: 2px; height: var(--top); padding: 0 6px 0 14px; border-bottom: 1px solid var(--line); }
 /* Without the list, the pane at the top left makes room for the buttons there. */
-body:not(.listed) .pane.corner header { padding-left: calc(var(--lights) + 120px); }
+body:not(.listed) .pane.corner header { padding-left: calc(var(--lights) + var(--chrome) + 14px); }
 .pane .gap { flex: 1; align-self: stretch; }
 .pane.active header { box-shadow: inset 0 -1px var(--accent); }
 /* The folder takes only the room left, up to its own width, so it gives way

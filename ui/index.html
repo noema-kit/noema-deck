@@ -18,7 +18,7 @@
     <p>Double-click the map to add one.</p>
   </div>
 
-  <!-- Beside the window's own buttons, wherever the session list is: the list and the two views. -->
+  <!-- Beside the window's own buttons, wherever the session list is: the list and the three views. -->
   <nav id="chrome" aria-label="Views">
     <button id="toggle-list" type="button" title="Session list" data-action="list" aria-label="Session list">
       <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg>
@@ -28,6 +28,9 @@
     </button>
     <button id="show-shell" type="button" title="Terminal" data-action="shell" aria-label="Terminal">
       <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6.5l1.8 1.5L5 9.5M8.5 10h2.5"/></svg>
+    </button>
+    <button id="show-monitor" type="button" title="Monitor" data-action="monitor" aria-label="Monitor">
+      <svg viewBox="0 0 16 16"><path d="M1.8 8.5h2.6l1.7-4.5 3 8 1.7-3.5h3.4"/></svg>
     </button>
   </nav>
 
@@ -85,6 +88,68 @@
   <section id="shell" aria-label="Terminal" data-tauri-drag-region hidden>
     <p id="shell-empty" class="note">No open session. Choose one from the list.</p>
   </section>
+
+  <!-- What the machine is doing: a card for each part of it, then the open panes and every process. -->
+  <section id="monitor" aria-label="Monitor" hidden>
+    <header data-tauri-drag-region>
+      <span id="monitor-name" class="title"></span>
+      <span id="monitor-host" class="sub"></span>
+    </header>
+    <div id="monitor-body" class="waiting">
+      <p id="monitor-note" class="note" role="status"></p>
+      <div id="gauges">
+        <article class="gauge wide" aria-label="Processor">
+          <header><h3>CPU</h3><span id="cpu-model" class="sub"></span></header>
+          <p class="figures"><b id="cpu-figure">–</b><span id="cpu-load" class="aside"></span></p>
+          <div id="cpu-plot" class="plot"><canvas role="img" aria-label="Processor use over the last two minutes"></canvas></div>
+          <div id="cpu-cores" class="cores"></div>
+        </article>
+        <article class="gauge wide" aria-label="Memory">
+          <header><h3>Memory</h3><span id="memory-total" class="sub"></span></header>
+          <p class="figures"><b id="memory-figure">–</b><span id="memory-share" class="aside"></span></p>
+          <div id="memory-plot" class="plot"><canvas role="img" aria-label="Memory in use over the last two minutes"></canvas></div>
+          <div class="volume"><span>Swap</span><span id="swap-figure" class="fine"></span><div class="meter"><span id="swap-meter"></span></div></div>
+        </article>
+        <article id="gpu-gauge" class="gauge" aria-label="Graphics" hidden>
+          <header><h3>GPU</h3><span id="gpu-model" class="sub"></span></header>
+          <p class="figures"><b id="gpu-figure">–</b></p>
+          <div id="gpu-plot" class="plot"><canvas role="img" aria-label="Graphics use over the last two minutes"></canvas></div>
+        </article>
+        <article class="gauge" aria-label="Network">
+          <header><h3>Network</h3><span id="network-total" class="sub"></span></header>
+          <p class="figures">
+            <span><small><i class="key in"></i>Received</small><b id="network-in">–</b></span>
+            <span><small><i class="key out"></i>Sent</small><b id="network-out">–</b></span>
+          </p>
+          <div id="network-plot" class="plot"><canvas role="img" aria-label="Bytes received and sent over the last two minutes"></canvas><span class="ceiling"></span></div>
+        </article>
+        <article class="gauge" aria-label="Disk">
+          <header><h3>Disk</h3></header>
+          <p class="figures">
+            <span><small><i class="key in"></i>Read</small><b id="disk-in">–</b></span>
+            <span><small><i class="key out"></i>Written</small><b id="disk-out">–</b></span>
+          </p>
+          <div id="disk-plot" class="plot"><canvas role="img" aria-label="Bytes read and written over the last two minutes"></canvas><span class="ceiling"></span></div>
+          <div id="disk-volumes"></div>
+        </article>
+      </div>
+
+      <div id="monitor-panes-part" hidden>
+        <div class="monitor-head"><h3>Panes</h3></div>
+        <table id="monitor-panes" class="figures-table"><thead></thead><tbody></tbody></table>
+      </div>
+
+      <div class="monitor-head">
+        <h3>Processes <small id="process-count"></small></h3>
+        <input id="process-search" type="search" placeholder="Filter" aria-label="Filter processes" autocomplete="off" spellcheck="false">
+      </div>
+      <table id="monitor-processes" class="figures-table"><thead></thead><tbody></tbody></table>
+      <p id="process-none" class="note" hidden>No process matches.</p>
+      <button id="process-more" class="more" type="button" hidden></button>
+    </div>
+  </section>
+  <!-- Placed by the pointer in the window, so it stays outside the view, whose own box may frame what is fixed inside it. -->
+  <div id="monitor-tip" role="tooltip" hidden></div>
 
   <aside id="panel" aria-label="Domain" hidden>
     <div id="panel-edge" role="separator" aria-label="Resize the domain panel" title="Drag to resize"></div>

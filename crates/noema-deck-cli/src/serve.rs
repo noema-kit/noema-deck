@@ -100,7 +100,7 @@ impl Server {
             return Response::text("403 Forbidden");
         }
         match (request.method.as_str(), request.path.as_str()) {
-            ("POST", route @ ("/map" | "/pane" | "/usage" | "/limits" | "/fonts"))
+            ("POST", route @ ("/map" | "/pane" | "/usage" | "/limits" | "/monitor" | "/fonts"))
                 if request.is_json =>
             {
                 match self.call(route, &request.body) {
@@ -123,6 +123,8 @@ impl Server {
             serde_json::to_vec(noema_deck_core::fonts::installed())
         } else if route == "/usage" {
             serde_json::to_vec(&self.deck.usage()?)
+        } else if route == "/monitor" {
+            serde_json::to_vec(&self.deck.monitor()?)
         } else if route == "/limits" {
             let request: LimitsRequest = serde_json::from_slice(body).context(invalid)?;
             serde_json::to_vec(&self.deck.limits(request)?)

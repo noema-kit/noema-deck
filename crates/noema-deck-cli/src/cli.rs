@@ -64,6 +64,12 @@ pub enum Command {
         #[arg(long)]
         limits: bool,
     },
+    /// Show what the machine is doing, and its busiest processes.
+    Monitor {
+        /// How many processes to list.
+        #[arg(long, default_value_t = 10)]
+        processes: usize,
+    },
     /// Edit and inspect domains.
     #[command(subcommand)]
     Domain(DomainCommand),

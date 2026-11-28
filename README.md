@@ -36,9 +36,10 @@ Claude Code, Codex and Antigravity keep every session, but as flat histories, on
 - **Domain map.** Domains nest and may have several parents. Size shows how many sessions a domain holds, colour how recently you worked there, and one click lays the map out by depth.
 - **Your real sessions.** Deck opens each session in its agent's own interface and stores only which domains it belongs to. No copies, and no chat window of its own.
 - **Tiled terminal.** Run sessions and shells side by side, split a pane by dropping another on its edge, and find them where you left them next time.
+- **Activity monitor.** Processors, memory, graphics, disks and network over the last two minutes, the busiest processes, and what each open pane's processes add up to.
 - **Usage and profile.** Each agent's plan limits, tokens by day, model and session, and a year of activity, read from the agents' own records.
 - **Made to fit.** Light and dark, a Galaxy theme, any installed font, zoom, and shortcuts you can rebind.
-- **Scriptable.** The same program lists, opens, renames and assigns sessions, and counts tokens, from a shell.
+- **Scriptable.** The same program lists, opens, renames and assigns sessions, counts tokens and reads the machine, from a shell.
 
 <table>
   <tr>
@@ -92,7 +93,7 @@ cargo run -- --help         # the command-line tool
 
 1. **Add a domain.** Double-click the map. Typing a folder path instead imports the folder's tree.
 2. **Add sessions.** Start a **New session** in a domain with any of the three agents, or bring in past ones with **Add existing**.
-3. **Work.** Click a session to open it. ⌘D splits the pane, ⌘1 and ⌘2 switch between map and terminal, ⌘= and ⌘− zoom, and ⌘, opens Settings.
+3. **Work.** Click a session to open it. ⌘D splits the pane, ⌘1, ⌘2 and ⌘3 switch between map, terminal and monitor, ⌘= and ⌘− zoom, and ⌘, opens Settings.
 
 ## How it works
 

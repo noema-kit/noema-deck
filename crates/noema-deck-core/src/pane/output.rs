@@ -35,6 +35,11 @@ impl Output {
         self.changed.notify_all();
     }
 
+    /// Whether the process ended or the pane was closed.
+    pub fn ended(&self) -> bool {
+        self.state.lock().ended
+    }
+
     /// Waits up to `wait` for output. Answers with the text so far, and whether
     /// the output has ended with nothing left to read.
     pub fn take(&self, wait: Duration) -> (String, bool) {

@@ -256,6 +256,40 @@ const steps = [
     key("b", { metaKey: true });
     expect($("shell").getBoundingClientRect().left === 264, "the list did not come back");
   }],
+  ["⌘3 shows what the machine is doing, and what the open pane's processes add up to", async () => {
+    key("3", { metaKey: true });
+    expect(!$("monitor").hidden && $("shell").hidden, "the monitor did not take the window");
+    await until("the first reading", () => /^\d+%$/.test($("cpu-figure").textContent));
+    expect(/ [MG]B$/.test($("memory-figure").textContent), `memory read "${$("memory-figure").textContent}"`);
+    expect($("cpu-cores").children.length > 0, "no processor was drawn");
+    const listed = () => [...$("monitor-processes").tBodies[0].rows];
+    expect(listed().length > 1, "no process was listed");
+    // The pane's agent is a process of this machine, and counts for its pane.
+    const pane = () => [...$("monitor-panes").tBodies[0].rows].find((row) => row.cells[0].textContent === "Alpha");
+    await until("the pane's processes", pane);
+    expect(Number(pane().cells[1].textContent) >= 1, "the pane had no process");
+    // The filter reads the pane's name too, so it lists what runs in the pane.
+    const filter = (text) => {
+      $("process-search").value = text;
+      $("process-search").dispatchEvent(new Event("input"));
+    };
+    filter("alpha");
+    expect(listed().length && listed().every((row) => row.querySelector(".chip:not([hidden])")), "a process outside the pane stayed listed");
+    filter("");
+    // A reader scrolled down stays where they are as readings come in, and
+    // the rows stay the same rows. With a pane open, the desktop window's
+    // WebKit put the reader back at the top whenever the rows were made again.
+    const body = $("monitor-body");
+    const row = listed()[0];
+    body.scrollTop = 140;
+    const figure = $("process-count").textContent + listed().map((item) => item.textContent).join();
+    await until("another reading", () => $("process-count").textContent + listed().map((item) => item.textContent).join() !== figure);
+    await sleep(100);
+    expect(body.scrollTop === 140, `the monitor moved its reader from 140 to ${body.scrollTop}`);
+    expect(listed()[0] === row, "the rows were made again");
+    pane().querySelector("button").click();
+    expect(!$("shell").hidden && $("monitor").hidden, "the pane's row did not open it");
+  }],
   ["a session carried to a pane's right edge opens beside it, and hiding one keeps it running", async () => {
     const alpha = document.querySelector(".pane:not([hidden])").getBoundingClientRect();
     await carryTo(leaf("Beta"), [alpha.right - 20, alpha.top + alpha.height / 2]);

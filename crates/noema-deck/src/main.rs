@@ -15,6 +15,7 @@ use noema_deck_core::{
     Deck, Snapshot,
     fonts::{self, Font},
     map::Request as MapRequest,
+    monitor::Sample,
     pane::{Reply as PaneReply, Request as PaneRequest},
     usage::{LimitsRequest, Plan, Report},
 };
@@ -22,9 +23,10 @@ use tauri::{AppHandle, State, webview::PageLoadEvent};
 
 // Each command runs on a thread kept for work that waits: a map request may
 // read every session from disk, a usage request every record of the agents, a
-// limits request waits for the agents to answer, and a pane read waits up to
-// twenty seconds for output. Run on the async runtime's few workers instead,
-// a handful of open panes would leave every other request waiting in line.
+// limits request waits for the agents to answer, a monitor request measures
+// for half a second, and a pane read waits up to twenty seconds for output.
+// Run on the async runtime's few workers instead, a handful of open panes
+// would leave every other request waiting in line.
 
 #[tauri::command]
 async fn map(deck: State<'_, Arc<Deck>>, request: MapRequest) -> Result<Snapshot, String> {
@@ -45,6 +47,12 @@ async fn usage(deck: State<'_, Arc<Deck>>) -> Result<Report, String> {
 #[tauri::command]
 async fn limits(deck: State<'_, Arc<Deck>>, request: LimitsRequest) -> Result<Vec<Plan>, String> {
     waiting(&deck, move |deck| deck.limits(request)).await
+}
+
+/// What the machine is doing now.
+#[tauri::command]
+async fn monitor(deck: State<'_, Arc<Deck>>) -> Result<Sample, String> {
+    waiting(&deck, Deck::monitor).await
 }
 
 /// Runs `work` on the runtime's threads for blocking work.
@@ -89,7 +97,15 @@ fn main() -> Result<()> {
                 let _ = webview.eval(script);
             }
         })
-        .invoke_handler(tauri::generate_handler![map, pane, usage, limits, fonts, selftest_done])
+        .invoke_handler(tauri::generate_handler![
+            map,
+            pane,
+            usage,
+            limits,
+            monitor,
+            fonts,
+            selftest_done
+        ])
         .run(tauri::generate_context!())?;
     Ok(())
 }

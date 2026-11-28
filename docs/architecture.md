@@ -6,8 +6,8 @@ How Deck is built. [Design](design.md) says what it does.
 
 ```mermaid
 flowchart LR
-    UI["ui/: map, lists, terminals and settings"] -->|map, pane, usage, limits| APP["noema-deck: desktop window"]
-    UI -->|/map, /pane, /usage, /limits| CLI["noema-deck-cli: commands and local server"]
+    UI["ui/: map, lists, terminals, monitor and settings"] -->|map, pane, usage, limits, monitor| APP["noema-deck: desktop window"]
+    UI -->|/map, /pane, /usage, /limits, /monitor| CLI["noema-deck-cli: commands and local server"]
     APP --> CLI
     APP --> CORE["noema-deck-core"]
     CLI --> CORE
@@ -21,7 +21,7 @@ flowchart LR
 | `noema-deck-core` | Everything Deck knows and does. No window, no arguments, no printing. |
 | `noema-deck-cli` | The commands, what they print, and a local server that gives the interface to a browser. |
 | `noema-deck` | The Tauri window. Given a command, it hands it to the CLI library, so one program is both the app and the command-line tool. |
-| `ui/` | Plain HTML, CSS and JavaScript with no build step. `app.js` sends requests and fills the lists, `map.js` runs the map and hands its drawing to the theme's painter, `theme.js` and `settings.js` put on and change the look, `usage.js` draws the Usage and Profile pages of Settings, `profile.js` keeps the name and picture, and `keys.js` holds the shortcuts. Each theme is a folder in `ui/themes/`. |
+| `ui/` | Plain HTML, CSS and JavaScript with no build step. `app.js` sends requests and fills the lists, `map.js` runs the map and hands its drawing to the theme's painter, `theme.js` and `settings.js` put on and change the look, `monitor.js` draws the Monitor view, `usage.js` draws the Usage and Profile pages of Settings, `profile.js` keeps the name and picture, and `keys.js` holds the shortcuts. Each theme is a folder in `ui/themes/`. |
 
 ## Core modules
 
@@ -34,8 +34,9 @@ flowchart LR
 | `map` | Domains, links and assignments joined with the agents' sessions. One `Request` goes in and one `Snapshot` comes out. `map::arrange` lays the domains out by depth around one centre. |
 | `pane` | Terminal panes on pseudoterminals. |
 | `usage`, `usage::claude`, `usage::codex`, `usage::antigravity` | The tokens each agent's records hold, added up by day, model and session. `usage::limits` asks each agent how much of its plan is used. |
+| `monitor`, `monitor::processes` | What the machine is doing: processors, memory, graphics, disks and network, every process, and what each pane's processes add up to. |
 | `fonts` | The installed typefaces, read once: which share one width, and which draw prompt icons. |
-| `deck` | One running Deck: the map behind a lock, the panes, and the usage as last read. |
+| `deck` | One running Deck: the map behind a lock, the panes, the usage as last read, and the machine's readings. |
 
 ## One request, one snapshot
 
@@ -52,7 +53,7 @@ sequenceDiagram
     M-->>UI: Snapshot: domains, links, sessions, missing
 ```
 
-Every rule lives in the core: a refused link, a domain's count, which sessions are missing. The window and the server pass the same routes through unchanged, `map`, `pane`, `usage`, `limits` and `fonts`, so the interface behaves the same in both. A snapshot equal to the one on screen is not drawn again. An agent whose records cannot be read, say mid-update, keeps the sessions last read, so the others stay listed and Deck still starts.
+Every rule lives in the core: a refused link, a domain's count, which sessions are missing. The window and the server pass the same routes through unchanged, `map`, `pane`, `usage`, `limits`, `monitor` and `fonts`, so the interface behaves the same in both. A snapshot equal to the one on screen is not drawn again. An agent whose records cannot be read, say mid-update, keeps the sessions last read, so the others stay listed and Deck still starts.
 
 ## Interface
 
@@ -122,6 +123,26 @@ So the pages open on figures at hand:
 - **Antigravity's last answer** is kept in `limits.json` beside the store, as `agy` keeps none. Claude Code keeps its own.
 - **Each card** asks its own agent, and takes the answer as it comes, showing the last one until then.
 - **The desktop window** runs every command on the runtime's threads for blocking work. On its few workers, a handful of panes waiting up to twenty seconds for output would leave every other request in line.
+
+## Monitor
+
+The `monitor` route answers with a `Sample`: the machine as of one reading. Nothing is read until the view asks, which it does every two seconds while it shows.
+
+| Part | Read from |
+| --- | --- |
+| Processors, load, memory, swap | The `sysinfo` crate. Memory in use is the total less what the system counts as available |
+| Graphics | `sysinfo`: the share of time the graphics processor is busy, as its driver reports it |
+| Network | `sysinfo`, over the interfaces with a hardware address. A tunnel's traffic is counted again on the interface that carries it, and the loopback's never leaves |
+| Disks | `sysinfo`. Every volume of a drive reports the drive's traffic, so the busiest volume speaks for the machine. A volume mounted in two parts is listed once |
+| Processes | `ps -A -o pid=,ppid=,user=,rss=,time=,comm=` |
+
+- **Rates.** A reading covers the time since the one before, and a rate is the average over it. A reading more than ten seconds after the last starts afresh and measures for half a second, so the first figures back are current, not an average over the time the view was away. One asked for sooner than half a second after the last waits until then, and a volume mounted since the last reading reports no traffic until the next.
+- **Processes.** macOS tells a program nothing about other users' processes, the window server and the system's services among them, but `ps` may read them all. It reports the processor time each has used to a hundredth of a second, and a process's share is what it gained between two readings.
+- **Panes.** Each pane knows the process it runs. A process counts for a pane when that process is among its ancestors, so an agent's tools and a shell's commands count for their pane. One that outlives what started it belongs to the system from then on.
+- **Rows.** A reading changes figures, seldom what there is to show, so the tables keep their rows and take new text. Made again at every reading, the rows of two tables in one redraw sent a scrolled view back to its top in the desktop window's WebKit, though not in Chrome.
+- **Charts.** The interface keeps the last two minutes and draws them on canvases, a frame every fifty milliseconds, shifted one reading back so that a line's end is always between two readings. Readings more than three apart are not joined.
+
+Read on macOS 26 on Apple silicon. Linux's `ps` reports processor time only to the second, so shares there would be coarse.
 
 ## Local server
 

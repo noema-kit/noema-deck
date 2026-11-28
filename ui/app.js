@@ -3,6 +3,7 @@
 
 import { MapView } from "./map.js";
 import { actionFor, label as labelKeys, setMoved } from "./keys.js";
+import { restyleMonitor, setupMonitor, showMonitor } from "./monitor.js";
 import { setupProfile, showProfile } from "./profile.js";
 import { closeSettings, openSettings, setupSettings } from "./settings.js";
 import { setupUsage } from "./usage.js";
@@ -97,7 +98,7 @@ export const map = new MapView($("map"));
 
 export const state = {
   snapshot: { domains: [], links: [], sessions: [], missing: [], waiting: [], panes: { open: [], layout: null } },
-  view: "map", // "map" or "shell".
+  view: "map", // "map", "shell" or "monitor".
   listed: true, // Whether the session list is showing.
   widths: { list: WIDTHS.list[1], panel: WIDTHS.panel[1] },
   zoom: 1, // How large the window is drawn, one of `ZOOMS`.
@@ -120,7 +121,8 @@ let drawn = ""; // The snapshot on screen, as the text it arrived in.
 /**
  * Sends one request down a route: "map" for domains and sessions, "pane" for a
  * terminal, "usage" for the tokens the agents used, "limits" for how much of
- * each plan is used, "fonts" for the installed typefaces.
+ * each plan is used, "monitor" for what the machine is doing, "fonts" for the
+ * installed typefaces.
  */
 export async function send(route, request) {
   if (tauri) {
@@ -255,7 +257,7 @@ function toast(message, action) {
 }
 
 
-// Views: the map or the terminals fill the window, with the session list beside either
+// Views: the map, the terminals or the monitor fill the window, with the session list beside each
 
 const freeLeft = () => (state.listed ? state.widths.list : 0);
 const freeRight = () => innerWidth - ($("panel").hidden ? 0 : state.widths.panel);
@@ -267,9 +269,9 @@ export function show(view) {
   state.view = view;
   const shell = view === "shell";
   $("shell").hidden = !shell;
-  $("show-map").classList.toggle("on", !shell);
-  $("show-shell").classList.toggle("on", shell);
-  document.body.classList.toggle("on-map", !shell);
+  for (const name of ["map", "shell", "monitor"]) $(`show-${name}`).classList.toggle("on", view === name);
+  document.body.classList.toggle("on-map", view === "map");
+  showMonitor(view === "monitor");
   renderPanel();
   if (!shell) document.activeElement?.blur();
   arrange();
@@ -299,6 +301,14 @@ export function showList(listed) {
   keep("list", listed ? "shown" : "hidden");
 }
 
+/**
+ * The narrowest a part is drawn. The list is never narrower than the window's
+ * buttons and the views' buttons at its top, which would otherwise hang over
+ * its edge; how much room they take changes with the zoom.
+ */
+const leastOf = (part) =>
+  part === "list" ? Math.max(WIDTHS.list[0], Math.ceil($("chrome").getBoundingClientRect().right) + 6) : WIDTHS[part][0];
+
 /** Sets the width of the session list or the domain panel, or puts it back to the usual one. */
 export function setWidth(part, width) {
   const [least, usual, most] = WIDTHS[part];
@@ -309,13 +319,14 @@ export function setWidth(part, width) {
 
 /**
  * Draws the list and the panel at their widths, narrowed as far as their
- * least while a small window would leave the map too little room.
+ * least while a small window would leave the map too little room. The width
+ * chosen is kept as it is, so a list widened for the buttons at one zoom is
+ * as narrow as before at another.
  */
 function fitWidths() {
   const spare = innerWidth - MAP_ROOM - state.widths.list - state.widths.panel;
   for (const part of ["panel", "list"]) {
-    const [least] = WIDTHS[part];
-    const width = Math.max(least, state.widths[part] + Math.min(0, spare / 2));
+    const width = Math.max(leastOf(part), state.widths[part] + Math.min(0, spare / 2));
     document.body.style.setProperty(`--${part}`, `${Math.round(width)}px`);
   }
 }
@@ -340,7 +351,8 @@ function dragging(handle, move) {
 }
 
 // Each edge drags to resize, and a double click puts it back.
-dragging($("list-edge"), (event) => setWidth("list", event.clientX));
+// A drag stops at what the list can be drawn at, so the edge never leaves the pointer.
+dragging($("list-edge"), (event) => setWidth("list", Math.max(leastOf("list"), event.clientX)));
 dragging($("panel-edge"), (event) => setWidth("panel", innerWidth - event.clientX));
 $("list-edge").addEventListener("dblclick", () => setWidth("list"));
 $("panel-edge").addEventListener("dblclick", () => setWidth("panel"));
@@ -1080,6 +1092,8 @@ function dropAt(x, y) {
   // A domain in the list takes a session in either view.
   const row = session && document.elementFromPoint(x, y)?.closest("#tree .node.domain");
   if (row) return { domain: Number(row.dataset.domain), row };
+  // The monitor takes nothing dropped on it.
+  if (state.view === "monitor") return null;
   if (state.view === "map") {
     const domain = session ? domainUnder(x, y) : null;
     if (domain !== null) return { domain };
@@ -1642,6 +1656,9 @@ function locate(pane) {
 function zoomTo(level) {
   state.zoom = level;
   keep("zoom", level);
+  // The window's buttons keep their size, so the page makes them more room, or less.
+  document.body.style.setProperty("--zoom", level);
+  fitWidths();
   return tauri.webview.getCurrentWebview().setZoom(level);
 }
 
@@ -1649,6 +1666,7 @@ function zoomTo(level) {
 const SHORTCUTS = {
   map: () => show("map"),
   shell: () => show("shell"),
+  monitor: () => show("monitor"),
   fit: () => fit(),
   list: () => showList(!state.listed),
   split_right: () => split("row"),
@@ -1695,6 +1713,7 @@ document.addEventListener("keydown", (event) => {
 
 $("show-map").addEventListener("click", () => show("map"));
 $("show-shell").addEventListener("click", () => show("shell"));
+$("show-monitor").addEventListener("click", () => show("monitor"));
 window.addEventListener("focus", () => {
   run("refresh");
   tick();
@@ -1728,6 +1747,7 @@ watch(({ painter, mode }) => {
   }
   if (shownMode && mode !== shownMode) offerReopen(mode);
   shownMode = mode;
+  restyleMonitor();
   // A pane whose agent kept the old colours gains its button to reopen it, and one that is in step again loses it.
   arrange();
 });
@@ -1746,6 +1766,14 @@ setupUsage({
   open: (session) => {
     closeSettings();
     openSession(session);
+  },
+});
+setupMonitor({
+  sample: () => send("monitor", {}),
+  // An open pane by the ID the core gave it, as the lists show it.
+  pane: (id) => {
+    const pane = panes.find((item) => item.id === id);
+    return pane ? { id, name: paneName(pane), mark: () => agentMark(pane.agent), show: () => showPane(pane) } : null;
   },
 });
 const zoom = Number(kept("zoom"));

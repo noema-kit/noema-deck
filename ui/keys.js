@@ -10,6 +10,7 @@ const mac = navigator.platform.startsWith("Mac") || navigator.userAgent.includes
 export const ACTIONS = [
   { id: "map", label: "Map", group: "Window", key: "mod+Digit1" },
   { id: "shell", label: "Terminal", group: "Window", key: "mod+Digit2" },
+  { id: "monitor", label: "Monitor", group: "Window", key: "mod+Digit3" },
   { id: "list", label: "Session list", group: "Window", key: "mod+KeyB" },
   { id: "search", label: "Search sessions", group: "Window", key: "mod+KeyK" },
   { id: "settings", label: "Settings", group: "Window", key: "mod+Comma" },
