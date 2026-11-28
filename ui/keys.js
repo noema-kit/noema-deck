@@ -1,7 +1,8 @@
 // Deck's keyboard shortcuts and the keys they are on. Each has its own key,
 // and the person can move it to another in Settings; the core keeps the ones
-// moved. A key is written as the modifiers held, then the key's code:
-// `mod+shift+KeyD`, where `mod` is Command on macOS and Control elsewhere.
+// moved. A key is written as the modifiers held, in the order `ctrl`, `alt`,
+// `shift`, `mod`, then the key's code: `shift+mod+KeyD`, where `mod` is
+// Command on macOS and Control elsewhere.
 
 const mac = navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Mac");
 
@@ -13,7 +14,7 @@ export const ACTIONS = [
   { id: "search", label: "Search sessions", group: "Window", key: "mod+KeyK" },
   { id: "settings", label: "Settings", group: "Window", key: "mod+Comma" },
   { id: "split_right", label: "Split the pane right", group: "Terminal", key: "mod+KeyD" },
-  { id: "split_down", label: "Split the pane down", group: "Terminal", key: "mod+shift+KeyD" },
+  { id: "split_down", label: "Split the pane down", group: "Terminal", key: "shift+mod+KeyD" },
   { id: "fit", label: "Show every domain", group: "Map", key: "mod+Digit0" },
 ];
 
