@@ -7,6 +7,7 @@ import { map, panes, screenText, send, setWidth, showList, state } from "./app.j
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const SCROLL_BAR = 14; // The width xterm keeps free for a terminal's scroll bar.
 const tauri = window.__TAURI__;
 
 async function until(what, test, ms = 10000) {
@@ -265,6 +266,23 @@ const steps = [
     const box = $("shell").getBoundingClientRect();
     expect(box.top === 0 && box.bottom === innerHeight && box.right === innerWidth, "the terminal left a margin");
     expect($("top").getBoundingClientRect().height === 0, "the map's strip stayed over the terminal");
+    // Whatever room a pane has, every row and column stays in sight, clear of
+    // the scroll bar, and the last row sits at the pane's foot. A fit that
+    // took the room around the text for room for text would cut the text off
+    // at some of these sizes, which span a row's height.
+    const part = (name) => document.querySelector(`.pane:not([hidden]) ${name}`);
+    for (let less = 0; less < 24; less += 3) {
+      Object.assign($("shell").style, { bottom: `${less}px`, right: `${less}px` });
+      await sleep(100);
+      const [body, text] = [part(".term"), part(".xterm-screen")].map((node) => node.getBoundingClientRect());
+      const [head, foot, side] = [text.top - body.top, body.bottom - text.bottom, body.right - text.right].map(Math.floor);
+      const fits = head >= 0 && foot >= 0 && foot <= 5 && side >= SCROLL_BAR;
+      expect(fits, `with ${less}px less room, the text lay ${head}px from its pane's head, ${foot}px from its foot and ${side}px from its side`);
+    }
+    Object.assign($("shell").style, { bottom: "", right: "" });
+    // That room shows the pane's ground, not the black xterm paints behind a terminal.
+    const around = getComputedStyle(part(".xterm-viewport")).backgroundColor;
+    expect(around === "rgba(0, 0, 0, 0)", `the room around the text was painted ${around}`);
     const input = document.querySelector(".pane .xterm-helper-textarea");
     input.focus();
     const typed = { data: "hello\r", inputType: "insertText", bubbles: true };

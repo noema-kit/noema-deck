@@ -684,7 +684,15 @@ body:not(.listed) .pane.corner header { padding-left: calc(var(--lights) + var(-
    first; the title shrinks only to keep the buttons in view. */
 .pane .title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 calc(15px * var(--display-size)) var(--font-display); }
 .pane .sub { flex: 1000 1 0; min-width: 0; max-width: max-content; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
-.pane .term { flex: 1; min-height: 0; padding: 8px 2px 4px 12px; }
+.pane .term { flex: 1; min-height: 0; }
+/* The room around the text is the terminal's own padding. A terminal is
+   fitted to its pane's body less that padding, so on the body it would pass
+   for room for text, and the last row and columns would be cut off. Whole
+   rows leave up to a row's height over, which goes above the text, so the
+   last row sits at the pane's foot, where agents keep their status lines. */
+.pane .xterm { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; padding: 6px 2px 4px 12px; }
+/* xterm paints black behind all of this, and its ground only behind the text. */
+.pane .xterm .xterm-viewport { background-color: transparent; }
 
 /* Floating pieces */
 
