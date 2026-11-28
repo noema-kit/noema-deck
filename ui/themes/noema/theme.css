@@ -6,11 +6,11 @@
   --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: var(--font-ui);
   --display-style: normal;
-  --display-size: 0.86;
+  --display-size: 0.94;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --map-name: 400 12px var(--font-ui);
-  --map-top: 600 13px var(--font-ui);
-  --map-count: 500 10px var(--font-ui);
+  --map-name: 400 13px var(--font-ui);
+  --map-top: 600 14px var(--font-ui);
+  --map-count: 500 10.5px var(--font-ui);
 }
 
 :root[data-mode="light"] {
