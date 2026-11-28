@@ -1,13 +1,14 @@
 //! Antigravity adapter.
 //!
 //! The Antigravity CLI, `agy`, keeps a summary of each conversation, with its
-//! first message as a preview, in `<home>/conversation_summaries.db`, and the
-//! title a conversation was given in `<home>/annotations/<id>.pbtxt`. Neither
-//! is documented, so only the few fields read here are relied on.
+//! first message as a preview, in `<home>/conversation_summaries.db`, the
+//! title a conversation was given in `<home>/annotations/<id>.pbtxt`, and the
+//! prompts typed, with the folder each was typed in, in `<home>/history.jsonl`.
+//! None of these is documented, so only the few fields read here are relied on.
 
 use std::{
     collections::HashMap,
-    env, fs,
+    env, fs, io,
     path::{Path, PathBuf},
     time::{Duration, UNIX_EPOCH},
 };
@@ -40,6 +41,7 @@ pub fn sessions(home: &Path) -> Result<Vec<Session>> {
         return Ok(Vec::new());
     }
     let titles = titles(&home.join("annotations"))?;
+    let typed_in = typed_in(&home.join("history.jsonl"));
     let mut sessions = Vec::new();
     for summary in read_summaries(&summaries)? {
         let Summary { id, title, folder, modified } = summary;
@@ -48,6 +50,7 @@ pub fn sessions(home: &Path) -> Result<Vec<Session>> {
             continue;
         };
         let Some(title) = titles.get(&id).cloned().or(title) else { continue };
+        let folder = folder.or_else(|| typed_in.get(&id).cloned());
         let written = metadata.modified()?.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO);
         let written = i64::try_from(written.as_secs()).unwrap_or(0);
         let key = SessionKey { agent: Agent::Antigravity, id };
@@ -66,9 +69,17 @@ pub fn rename(home: &Path, id: &str, title: &str) -> Result<String> {
     let dir = home.join("annotations");
     fs::create_dir_all(&dir).with_context(|| format!("Create {}", dir.display()))?;
     let file = dir.join(format!("{id}.pbtxt"));
-    let text = fs::read_to_string(&file).unwrap_or_default();
-    fs::write(&file, with_title(&text, &title))
-        .with_context(|| format!("Write {}", file.display()))?;
+    // A file that cannot be read is left alone rather than written over
+    // without the other annotations it holds.
+    let text = match fs::read_to_string(&file) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+        read => read.with_context(|| format!("Read {}", file.display()))?,
+    };
+    // Written beside and moved into place, so `agy` never reads half a file.
+    let fresh = dir.join(format!(".{id}.pbtxt.new"));
+    fs::write(&fresh, with_title(&text, &title))
+        .with_context(|| format!("Write {}", fresh.display()))?;
+    fs::rename(&fresh, &file).with_context(|| format!("Write {}", file.display()))?;
     Ok(title)
 }
 
@@ -186,6 +197,22 @@ fn titles(annotations: &Path) -> Result<HashMap<String, String>> {
         }
     }
     Ok(titles)
+}
+
+/// The folder each conversation's prompts were last typed in, by
+/// conversation. A summary can lose its folder when an `agy` started in
+/// another folder writes it again, while every prompt after the first is
+/// recorded with its conversation and folder.
+fn typed_in(history: &Path) -> HashMap<String, PathBuf> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Typed {
+        conversation_id: Option<String>,
+        workspace: Option<PathBuf>,
+    }
+    let text = fs::read_to_string(history).unwrap_or_default();
+    let typed = text.lines().filter_map(|line| serde_json::from_str::<Typed>(line).ok());
+    typed.filter_map(|typed| Some((typed.conversation_id?, typed.workspace?))).collect()
 }
 
 /// The span and value of the top-level `title` field of a text-format
@@ -330,6 +357,7 @@ mod tests {
     const SECOND: &str = "2240b10a-706d-4df9-a89f-26cc426d9a52";
     const EMPTY: &str = "6b4c3a20-0000-4000-8000-000000000000";
     const AGENT: &str = "7c5d4b30-0000-4000-8000-000000000000";
+    const LOST: &str = "8d6e5c40-0000-4000-8000-000000000000";
 
     /// A summaries table with the columns Deck reads, and the rest as `agy` has them.
     fn summaries(home: &Path, rows: &[(&str, &str, &str, &str, i64, &str, &str)]) -> Result<()> {
@@ -350,7 +378,11 @@ mod tests {
                     preview,
                     steps,
                     time,
-                    json!([format!("file://{folder}")]).to_string(),
+                    if folder.is_empty() {
+                        String::new()
+                    } else {
+                        json!([format!("file://{folder}")]).to_string()
+                    },
                     parent,
                     i64::from(!parent.is_empty()),
                 ],
@@ -381,8 +413,17 @@ mod tests {
                 ),
                 (EMPTY, "", "", "/work", 0, late, ""),
                 (AGENT, "Helper", "Help", "/work", 3, late, FIRST),
+                // A summary another `agy` wrote again without its folder.
+                (LOST, "Lost folder", "Hi", "", 1, "2000-01-01 00:00:00+00:00", ""),
             ],
         )?;
+        let history = [
+            json!({ "display": "Hi", "timestamp": 1, "workspace": "/first" }),
+            json!({ "display": "/model", "timestamp": 2, "workspace": "/old", "conversationId": LOST, "type": "slash_command" }),
+            json!({ "display": "Again", "timestamp": 3, "workspace": "/typed", "conversationId": LOST }),
+        ];
+        let lines: Vec<_> = history.iter().map(ToString::to_string).collect();
+        fs::write(home.path().join("history.jsonl"), lines.join("\n"))?;
 
         let mut sessions = sessions(home.path())?;
         sessions.sort_by_key(|session| std::cmp::Reverse(session.updated));
@@ -391,7 +432,11 @@ mod tests {
             .iter()
             .map(|session| (session.key.id.as_str(), session.title.as_str()))
             .collect();
-        assert_eq!(seen, [(FIRST, "Quick Status Check"), (SECOND, "Check the account")]);
+        assert_eq!(
+            seen,
+            [(FIRST, "Quick Status Check"), (SECOND, "Check the account"), (LOST, "Lost folder")]
+        );
+        assert_eq!(sessions[2].folder.as_deref(), Some(Path::new("/typed")));
         assert_eq!(sessions[0].key.agent, Agent::Antigravity);
         assert_eq!(sessions[0].folder.as_deref(), Some(Path::new("/Work Space")));
         assert_eq!(sessions[0].updated, 4_102_444_800);

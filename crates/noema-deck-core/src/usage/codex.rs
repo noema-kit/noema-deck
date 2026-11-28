@@ -40,7 +40,9 @@ struct Payload {
     /// The model each turn runs, in a turn's first record.
     model: Option<String>,
     info: Option<Info>,
-    rate_limits: Option<RateLimits>,
+    /// Read apart, so an odd limits block, such as one with no reset
+    /// time, costs only the limits and not the reply's tokens.
+    rate_limits: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -74,7 +76,7 @@ struct RateLimits {
 struct Allowance {
     used_percent: f64,
     window_minutes: u64,
-    resets_at: i64,
+    resets_at: Option<i64>,
 }
 
 pub(super) fn read(path: &Path) -> Records {
@@ -90,15 +92,21 @@ pub(super) fn read(path: &Path) -> Records {
             ("event_msg", Some("token_count")) => {
                 let at = seconds(&line.timestamp).unwrap_or(0);
                 // Each event gives the windows anew; only the newest are kept.
-                if let Some(limits) = payload.rate_limits {
+                let limits = payload
+                    .rate_limits
+                    .and_then(|value| serde_json::from_value::<RateLimits>(value).ok());
+                if let Some(limits) = limits {
                     records.windows = [limits.primary, limits.secondary]
                         .into_iter()
                         .flatten()
-                        .map(|window| Window {
-                            minutes: window.window_minutes,
-                            used: window.used_percent,
-                            resets: window.resets_at,
-                            seen: at,
+                        .filter_map(|window| {
+                            let resets = window.resets_at?;
+                            Some(Window {
+                                minutes: window.window_minutes,
+                                used: window.used_percent,
+                                resets,
+                                seen: at,
+                            })
                         })
                         .collect();
                 }
@@ -154,7 +162,9 @@ mod tests {
             r#"{"timestamp":"2026-11-27T10:00:00Z","type":"turn_context","payload":{"model":"gpt-6.2"}}"#.into(),
             count("01", 10, 10),
             count("02", 10, 10),
-            count("03", 30, 20),
+            // A limits block without a reset time still leaves the reply counted.
+            count("03", 20, 10).replace("1796197238", "null"),
+            count("04", 40, 20),
         ];
         fs::write(&path, lines.join("\n"))?;
         let records = read(&path);
@@ -163,7 +173,7 @@ mod tests {
             .iter()
             .map(|reply| (reply.session.as_str(), reply.model.as_str(), reply.tokens.input))
             .collect();
-        assert_eq!(replies, [("s", "gpt-6.2", 6), ("s", "gpt-6.2", 16)]);
+        assert_eq!(replies, [("s", "gpt-6.2", 6), ("s", "gpt-6.2", 6), ("s", "gpt-6.2", 16)]);
         assert_eq!(records.replies[0].tokens.cached, 4);
         assert_eq!(records.windows.len(), 1);
         assert_eq!((records.windows[0].minutes, records.windows[0].used), (10_080, 8.0));

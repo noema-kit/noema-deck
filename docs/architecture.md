@@ -52,7 +52,7 @@ sequenceDiagram
     M-->>UI: Snapshot: domains, links, sessions, missing
 ```
 
-Every rule lives in the core: a refused link, a domain's count, which sessions are missing. The window and the server pass the same routes through unchanged, `map`, `pane`, `usage`, `limits` and `fonts`, so the interface behaves the same in both. A snapshot equal to the one on screen is not drawn again.
+Every rule lives in the core: a refused link, a domain's count, which sessions are missing. The window and the server pass the same routes through unchanged, `map`, `pane`, `usage`, `limits` and `fonts`, so the interface behaves the same in both. A snapshot equal to the one on screen is not drawn again. An agent whose records cannot be read, say mid-update, keeps the sessions last read, so the others stay listed and Deck still starts.
 
 ## Interface
 
@@ -161,7 +161,7 @@ Read from Codex 0.171.0 on macOS. `CODEX_HOME` moves the folder, as it does for 
 | List | Conversation summaries in the SQLite file `~/.gemini/antigravity-cli/conversation_summaries.db`, read only. Only conversations with a step and a file in `conversations/`, as `agy`'s `/resume` lists them, not sub-agents |
 | Title | `title` in the conversation's annotations, `annotations/<id>.pbtxt`, else the summary's title, else the first line of the summary's `preview`, its first message. A new conversation has only the preview, so Deck recognises the session it started from its first message |
 | Rename | Set `title` in the annotations, where `agy` keeps the names given to conversations and copies them into its summaries |
-| Folder | First `file://` URI in the summary's `workspace_uris` |
+| Folder | First `file://` URI in the summary's `workspace_uris`, else the folder its last prompt was typed in, from `history.jsonl`. An `agy` started in another folder can write the summary again without one |
 | Last activity | The later of the summary's time and the conversation file's modification time |
 | Open | `agy --conversation <id>` in the conversation's folder |
 | Start | `agy` in the folder. `agy` chooses the ID, so Deck follows the first new conversation in that folder, as for Codex |

@@ -267,7 +267,7 @@ impl Map {
     }
 
     fn refresh(&mut self) -> Result<()> {
-        let mut listed = self.listing.sessions(&self.homes)?;
+        let mut listed = self.listing.sessions(&self.homes);
         self.recognise(&listed)?;
         // A named session the agent has just stored takes its name now.
         for started in &self.started {
@@ -276,7 +276,11 @@ impl Map {
                 continue;
             };
             if &session.title != name {
-                session.title = self.listing.rename(&self.homes, &session.key, name)?;
+                // A name that cannot be written is let go, so later reads still work.
+                match self.listing.rename(&self.homes, &session.key, name) {
+                    Ok(title) => session.title = title,
+                    Err(error) => eprintln!("Name session {}: {error:#}", session.key.id),
+                }
             }
         }
         self.started.retain(|started| !listed.iter().any(|session| session.key == started.key));
@@ -585,6 +589,19 @@ mod tests {
         assert_eq!(named["title"], "Named");
         assert!(sessions.iter().all(|session| session["id"] != json!(given.id)));
         assert_eq!(snapshot["last_agent"], "codex");
+        Ok(())
+    }
+
+    #[test]
+    fn an_agent_whose_records_cannot_be_read_leaves_the_others_listed() -> Result<()> {
+        let folder = tempfile::tempdir()?;
+        fs::create_dir_all(folder.path().join("antigravity"))?;
+        fs::write(folder.path().join("antigravity/conversation_summaries.db"), "not a database")?;
+
+        let map = map(folder.path())?;
+
+        let sessions = snapshot(&map)?["sessions"].as_array().map(Vec::len);
+        assert_eq!(sessions, Some(2));
         Ok(())
     }
 

@@ -30,6 +30,9 @@ pub enum Agent {
 }
 
 impl Agent {
+    /// Every agent, in the order Deck lists them.
+    pub const ALL: [Self; 3] = [Self::Claude, Self::Codex, Self::Antigravity];
+
     /// The name the store and the interface know the agent by.
     #[must_use]
     pub fn name(self) -> &'static str {
@@ -95,16 +98,29 @@ impl Homes {
 pub struct Listing {
     claude: claude::Listing,
     codex: codex::Listing,
+    /// Each agent's sessions as last read in full, in the order of `Agent::ALL`.
+    kept: [Vec<Session>; 3],
 }
 
 impl Listing {
-    /// Every agent's sessions, most recent first.
-    pub fn sessions(&mut self, homes: &Homes) -> Result<Vec<Session>> {
-        let mut sessions = self.claude.sessions(&homes.claude)?;
-        sessions.extend(self.codex.sessions(&homes.codex)?);
-        sessions.extend(antigravity::sessions(&homes.antigravity)?);
+    /// Every agent's sessions, most recent first. An agent whose records
+    /// cannot be read now, say mid-update, keeps the sessions last read, so
+    /// the others stay listed and Deck still starts.
+    pub fn sessions(&mut self, homes: &Homes) -> Vec<Session> {
+        let read = [
+            self.claude.sessions(&homes.claude),
+            self.codex.sessions(&homes.codex),
+            antigravity::sessions(&homes.antigravity),
+        ];
+        for ((agent, kept), listed) in Agent::ALL.iter().zip(&mut self.kept).zip(read) {
+            match listed {
+                Ok(listed) => *kept = listed,
+                Err(error) => eprintln!("Read {}'s sessions: {error:#}", agent.name()),
+            }
+        }
+        let mut sessions = self.kept.concat();
         sessions.sort_by(|a, b| b.updated.cmp(&a.updated).then_with(|| a.key.cmp(&b.key)));
-        Ok(sessions)
+        sessions
     }
 
     /// Names a listed session where its agent keeps names, so the agent shows

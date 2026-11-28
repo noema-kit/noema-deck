@@ -127,20 +127,19 @@ pub fn start(id: &str, folder: &Path, name: Option<&str>) -> Result<Launch> {
 /// only. Their own settings are left alone.
 #[must_use]
 pub fn for_pane(mut launch: Launch, light: bool) -> Launch {
-    if let Some(theme) = config_dir().ok().and_then(|config| counterpart(&config, light)) {
+    let files = config_dir().ok().zip(state_file().ok());
+    if let Some(theme) = files.and_then(|(config, state)| counterpart(&config, &state, light)) {
         let settings = serde_json::json!({ "theme": theme });
         launch.args.extend(["--settings".into(), settings.to_string()]);
     }
     launch
 }
 
-/// The theme matching the one chosen in the Claude Code folder `config` for
-/// a light or a dark terminal, when the chosen one is of the other kind.
-/// Claude Code is dark unless a theme is chosen.
-fn counterpart(config: &Path, light: bool) -> Option<String> {
-    // The theme is in the settings file, or in the older file beside the folder.
-    let beside = config.with_file_name(".claude.json");
-    let chosen = [config.join("settings.json"), beside].iter().find_map(|file| theme(file));
+/// The theme matching the one chosen in the Claude Code folder `config`, or
+/// in its older `state` file, for a light or a dark terminal, when the
+/// chosen one is of the other kind. Claude Code is dark unless a theme is chosen.
+fn counterpart(config: &Path, state: &Path, light: bool) -> Option<String> {
+    let chosen = [&config.join("settings.json"), state].iter().find_map(|file| theme(file));
     let chosen = chosen.unwrap_or_else(|| "dark".into());
     let (from, to) = if light { ("dark", "light") } else { ("light", "dark") };
     Some(format!("{to}{}", chosen.strip_prefix(from)?))
@@ -419,18 +418,19 @@ mod tests {
     fn a_theme_of_the_other_kind_has_a_counterpart_for_panes() -> Result<()> {
         let root = tempfile::tempdir()?;
         let config = root.path().join("claude");
+        let state = root.path().join(".claude.json");
         fs::create_dir(&config)?;
-        assert_eq!(counterpart(&config, false), None);
-        assert_eq!(counterpart(&config, true).as_deref(), Some("light"));
+        assert_eq!(counterpart(&config, &state, false), None);
+        assert_eq!(counterpart(&config, &state, true).as_deref(), Some("light"));
 
-        fs::write(root.path().join(".claude.json"), r#"{"theme":"light"}"#)?;
-        assert_eq!(counterpart(&config, false).as_deref(), Some("dark"));
-        assert_eq!(counterpart(&config, true), None);
+        fs::write(&state, r#"{"theme":"light"}"#)?;
+        assert_eq!(counterpart(&config, &state, false).as_deref(), Some("dark"));
+        assert_eq!(counterpart(&config, &state, true), None);
         fs::write(config.join("settings.json"), r#"{"theme":"light-daltonized","other":1}"#)?;
-        assert_eq!(counterpart(&config, false).as_deref(), Some("dark-daltonized"));
+        assert_eq!(counterpart(&config, &state, false).as_deref(), Some("dark-daltonized"));
         fs::write(config.join("settings.json"), r#"{"theme":"dark-ansi"}"#)?;
-        assert_eq!(counterpart(&config, false), None);
-        assert_eq!(counterpart(&config, true).as_deref(), Some("light-ansi"));
+        assert_eq!(counterpart(&config, &state, false), None);
+        assert_eq!(counterpart(&config, &state, true).as_deref(), Some("light-ansi"));
         Ok(())
     }
 
