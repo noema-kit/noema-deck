@@ -28,6 +28,7 @@ pub fn run(store: Option<&Path>, command: Command) -> Result<()> {
         Command::Sessions { unassigned, query } => {
             sessions::list(&map()?, unassigned, query.as_deref())
         }
+        Command::Search { text } => sessions::search(&map()?, &text),
         Command::Open { session } => sessions::open(&map()?, &session),
         Command::Rename { session, title } => sessions::rename(&mut map()?, &session, &title),
         Command::Assign { session, domain } => sessions::assign(&mut map()?, &session, &domain),

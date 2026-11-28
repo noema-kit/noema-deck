@@ -23,6 +23,26 @@ use crate::session::{Session, SessionKey};
 
 /// The conversation summaries `agy` keeps.
 const SUMMARIES: &str = "conversation_summaries.db";
+/// Where a conversation's folder under `brain` keeps what was said, a step to
+/// a line.
+pub(crate) const TRANSCRIPT: &str = ".system_generated/logs/transcript_full.jsonl";
+
+/// Every transcript of the CLI whose folder is `home`, and of the editor,
+/// which keeps its folder beside it.
+pub(crate) fn transcripts(home: &Path) -> Result<Vec<PathBuf>> {
+    let mut found = Vec::new();
+    let editor = home.with_file_name("antigravity");
+    let apps = if editor == home { vec![editor] } else { vec![home.to_owned(), editor] };
+    for app in apps {
+        for conversation in entries(&app.join("brain"))? {
+            let transcript = conversation.join(TRANSCRIPT);
+            if transcript.is_file() {
+                found.push(transcript);
+            }
+        }
+    }
+    Ok(found)
+}
 
 /// The Antigravity CLI's own folder: `$NOEMA_DECK_ANTIGRAVITY_HOME`, else
 /// `~/.gemini/antigravity-cli`. `agy` itself always uses the latter.

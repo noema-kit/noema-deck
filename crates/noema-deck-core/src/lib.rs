@@ -12,6 +12,7 @@
 //! | [`map`] | The map as a whole, and the requests that change it |
 //! | [`pane`] | Shell panes on pseudoterminals |
 //! | [`usage`] | The tokens the agents used |
+//! | [`search`] | Sessions found by what was said in them |
 //! | [`monitor`] | What the machine is doing, and each pane's part in it |
 //! | [`fonts`] | The typefaces installed on this machine |
 //! | [`deck`] | One running Deck, shared by every window and connection |
@@ -25,6 +26,8 @@ pub mod import;
 pub mod map;
 pub mod monitor;
 pub mod pane;
+mod records;
+pub mod search;
 pub mod session;
 pub mod store;
 pub mod usage;

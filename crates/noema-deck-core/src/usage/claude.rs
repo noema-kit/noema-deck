@@ -13,7 +13,8 @@ use std::{
 use anyhow::Result;
 use serde::Deserialize;
 
-use super::{Records, Reply, Tokens, lines, seconds, walk};
+use super::{Records, Reply, Tokens, seconds};
+use crate::records::{lines, walk};
 
 /// Every transcript under `projects`, sub-agents' included.
 pub(super) fn files(projects: &Path) -> Result<Vec<PathBuf>> {

@@ -282,6 +282,11 @@ input:not([type="checkbox"]):focus-visible, select:focus-visible { outline: none
 .node:hover, .node:focus-visible { outline: none; background: var(--field); }
 .node.current { background: var(--accent-wash); color: var(--ink); }
 .node .title { flex: 1; min-width: 0; margin-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Where a search's phrase was said in the session above. */
+.node.quote { height: 22px; margin-top: -5px; padding-left: calc(52px + var(--depth, 0) * var(--step)); }
+.said { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.said mark { border-radius: 2px; background: var(--accent-wash); color: var(--ink); box-shadow: 0 0 0 1px var(--accent-line); }
+.session .said { grid-column: 1 / -1; margin-top: 3px; }
 .node .meta { flex: none; min-width: 20px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
 .node .mark, .node .kind { display: grid; flex: none; place-items: center; width: 14px; height: 18px; color: var(--muted); }
 .node .kind { width: 18px; }

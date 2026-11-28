@@ -12,6 +12,7 @@ use crate::{
     map::{self, Map, Snapshot},
     monitor::{Monitor, Sample},
     pane::{self, Panes, login_environment},
+    search::{Hit, Query, Texts},
     store,
     usage::{Asker, Ledger, LimitsRequest, Plan, Report},
 };
@@ -24,6 +25,8 @@ pub struct Deck {
     panes: Panes,
     usage: Arc<Mutex<Ledger>>,
     asker: Arc<Asker>,
+    /// What was said in the sessions, read when first searched.
+    texts: Mutex<Texts>,
     /// Set up when the machine's activity is first asked for.
     monitor: Mutex<Option<Monitor>>,
 }
@@ -45,6 +48,7 @@ impl Deck {
             panes: Panes::default(),
             usage: Arc::default(),
             asker: Arc::new(Asker::keeping(store.with_file_name("limits.json"))),
+            texts: Mutex::default(),
             monitor: Mutex::default(),
         };
         // So Settings opens on figures at hand: the agents' records are read,
@@ -85,6 +89,14 @@ impl Deck {
                 vec![claude, codex()?, antigravity]
             }
         })
+    }
+
+    /// The sessions in which the query's text was said, of every session the
+    /// agents keep. The first search reads every record, as the first count of
+    /// tokens does, and a query with no text only does that reading.
+    pub fn search(&self, query: &Query) -> Result<Vec<Hit>> {
+        let homes = self.map.lock().homes().clone();
+        self.texts.lock().find(&homes, &query.text)
     }
 
     /// What the machine is doing now, and what each open pane's processes add

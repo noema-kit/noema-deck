@@ -1,11 +1,12 @@
 //! Commands about sessions.
 
-use std::{os::unix::process::CommandExt, process};
+use std::{collections::HashMap, os::unix::process::CommandExt, process};
 
 use anyhow::{Context, Result};
 use noema_deck_core::{
     Map, agent,
     map::{Request, SessionView},
+    search::Texts,
 };
 
 use crate::{find, print};
@@ -26,7 +27,21 @@ pub fn list(map: &Map, unassigned: bool, query: Option<&str>) -> Result<()> {
         .iter()
         .filter(|session| !unassigned || session.domains.is_empty())
         .filter(|session| matches(session));
-    print::sessions(&snapshot, shown);
+    print::sessions(&snapshot, shown, |_| None);
+    Ok(())
+}
+
+/// Prints the sessions in which `text` was said, each with the first place
+/// it was, the phrase between brackets.
+pub fn search(map: &Map, text: &str) -> Result<()> {
+    let snapshot = map.snapshot()?;
+    let hits = Texts::default().find(map.homes(), text)?;
+    let hits: HashMap<_, _> = hits.iter().map(|hit| (&hit.key, hit)).collect();
+    let shown = snapshot.sessions.iter().filter(|session| hits.contains_key(&session.key));
+    print::sessions(&snapshot, shown, |session| {
+        let hit = hits.get(&session.key)?;
+        Some(format!("{}× {}[{}]{}", hit.count, hit.before, hit.found, hit.after))
+    });
     Ok(())
 }
 

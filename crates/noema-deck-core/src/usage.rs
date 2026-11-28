@@ -21,15 +21,8 @@ pub use self::limits::{Asker, Limit, LimitsRequest, Plan};
 
 use std::{
     collections::{BTreeMap, HashMap},
-    fs,
-    io::{BufRead, BufReader, Read},
-    num::NonZero,
     ops::AddAssign,
-    panic,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicUsize, Ordering},
-    thread,
-    time::SystemTime,
+    path::PathBuf,
 };
 
 use anyhow::Result;
@@ -37,7 +30,8 @@ use chrono::{DateTime, Local, TimeZone};
 use serde::Serialize;
 
 use crate::{
-    agent::{Agent, Homes, entries},
+    agent::{self, Agent, Homes},
+    records::Kept,
     session::SessionKey,
 };
 
@@ -138,16 +132,12 @@ struct Records {
     windows: Vec<Window>,
 }
 
-/// A file's modification time and length. A change to either means it has
-/// to be read again.
-type Stamp = (SystemTime, u64);
-
 /// Every agent's records, as last read.
 #[derive(Default)]
 pub struct Ledger {
     /// Every file, in the order read.
     files: Vec<(Agent, PathBuf)>,
-    read: HashMap<PathBuf, (Stamp, Records)>,
+    read: Kept<Records>,
 }
 
 impl Ledger {
@@ -178,15 +168,15 @@ impl Ledger {
 
     /// Each file's records, in the order read.
     fn records(&self) -> impl Iterator<Item = (Agent, &Records)> {
-        self.files.iter().filter_map(|(agent, path)| Some((*agent, &self.read.get(path)?.1)))
+        self.files.iter().filter_map(|(agent, path)| Some((*agent, self.read.get(path)?)))
     }
 
     /// Reads the files that changed since last time.
     fn read(&mut self, homes: &Homes) -> Result<()> {
         let listed = [
             (Agent::Claude, claude::files(&homes.claude)?),
-            (Agent::Codex, codex::files(&homes.codex)?),
-            (Agent::Antigravity, antigravity::files(&homes.antigravity)?),
+            (Agent::Codex, agent::codex::every_rollout(&homes.codex)?),
+            (Agent::Antigravity, agent::antigravity::transcripts(&homes.antigravity)?),
         ];
         let mut files: Vec<_> = listed
             .into_iter()
@@ -196,57 +186,14 @@ impl Ledger {
         // for the same session.
         files.sort();
 
-        let mut found = HashMap::new();
-        let mut unread = Vec::new();
-        for (agent, path) in &files {
-            let Ok(metadata) = fs::metadata(path) else { continue };
-            let stamp = (metadata.modified()?, metadata.len());
-            match self.read.remove(path).filter(|(read, _)| *read == stamp) {
-                Some(known) => _ = found.insert(path.clone(), known),
-                None => unread.push((*agent, path.as_path(), stamp)),
-            }
-        }
-        for ((_, path, stamp), read) in unread.iter().zip(read_all(&unread)) {
-            found.insert(path.to_path_buf(), (*stamp, read));
-        }
-        self.read = found;
+        self.read.refresh(&files, |agent, path| match agent {
+            Agent::Claude => claude::read(path),
+            Agent::Codex => codex::read(path),
+            Agent::Antigravity => antigravity::read(path),
+        })?;
         self.files = files;
         Ok(())
     }
-}
-
-/// Reads each file in `unread`, in order, on as many threads as there are
-/// cores. Codex compresses old rollouts, and reading every one takes seconds
-/// on one thread.
-fn read_all(unread: &[(Agent, &Path, Stamp)]) -> Vec<Records> {
-    let next = AtomicUsize::new(0);
-    let workers = thread::available_parallelism().map_or(1, NonZero::get).min(unread.len());
-    let mut read: Vec<(usize, Records)> = thread::scope(|scope| {
-        let workers: Vec<_> = (0..workers)
-            .map(|_| {
-                scope.spawn(|| {
-                    let mut read = Vec::new();
-                    loop {
-                        let at = next.fetch_add(1, Ordering::Relaxed);
-                        let Some((agent, path, _)) = unread.get(at) else { break };
-                        let records = match agent {
-                            Agent::Claude => claude::read(path),
-                            Agent::Codex => codex::read(path),
-                            Agent::Antigravity => antigravity::read(path),
-                        };
-                        read.push((at, records));
-                    }
-                    read
-                })
-            })
-            .collect();
-        workers
-            .into_iter()
-            .flat_map(|worker| worker.join().unwrap_or_else(|panic| panic::resume_unwind(panic)))
-            .collect()
-    });
-    read.sort_by_key(|(at, _)| *at);
-    read.into_iter().map(|(_, records)| records).collect()
 }
 
 /// Adds up `replies` by day.
@@ -284,51 +231,6 @@ fn day(at: i64) -> String {
 /// A moment written as RFC 3339, in Unix seconds.
 fn seconds(at: &str) -> Option<i64> {
     DateTime::parse_from_rfc3339(at).ok().map(|at| at.timestamp())
-}
-
-/// Calls `each` with every line of `source` whose first `head` bytes hold one
-/// of `marks`. Records run to megabytes and most hold no tokens, so a line is
-/// searched before it is parsed.
-fn lines(source: impl Read, head: usize, marks: &[&str], mut each: impl FnMut(&str)) {
-    let mut reader = BufReader::with_capacity(1 << 16, source);
-    let mut line = Vec::new();
-    loop {
-        line.clear();
-        match reader.read_until(b'\n', &mut line) {
-            Ok(0) | Err(_) => break,
-            Ok(_) => {}
-        }
-        let head = &line[..line.len().min(head)];
-        if !marks.iter().any(|mark| contains(head, mark.as_bytes())) {
-            continue;
-        }
-        if let Ok(text) = std::str::from_utf8(&line) {
-            each(text);
-        }
-    }
-}
-
-fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    haystack.windows(needle.len()).any(|window| window == needle)
-}
-
-/// Every file under `dir` whose name ends with `suffix`, at most `depth`
-/// folders down.
-fn walk(dir: &Path, suffix: &str, depth: usize, found: &mut Vec<PathBuf>) -> Result<()> {
-    for path in entries(dir)? {
-        if path.is_dir() {
-            if depth > 0 {
-                walk(&path, suffix, depth - 1, found)?;
-            }
-        } else if path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.ends_with(suffix))
-        {
-            found.push(path);
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

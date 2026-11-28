@@ -17,13 +17,15 @@ use noema_deck_core::{
     map::Request as MapRequest,
     monitor::Sample,
     pane::{Reply as PaneReply, Request as PaneRequest},
+    search::{Hit, Query},
     usage::{LimitsRequest, Plan, Report},
 };
 use tauri::{AppHandle, State, webview::PageLoadEvent};
 
 // Each command runs on a thread kept for work that waits: a map request may
 // read every session from disk, a usage request every record of the agents, a
-// limits request waits for the agents to answer, a monitor request measures
+// limits request waits for the agents to answer, a first search reads what
+// was said in every session, a monitor request measures
 // for half a second, and a pane read waits up to twenty seconds for output.
 // Run on the async runtime's few workers instead, a handful of open panes
 // would leave every other request waiting in line.
@@ -47,6 +49,12 @@ async fn usage(deck: State<'_, Arc<Deck>>) -> Result<Report, String> {
 #[tauri::command]
 async fn limits(deck: State<'_, Arc<Deck>>, request: LimitsRequest) -> Result<Vec<Plan>, String> {
     waiting(&deck, move |deck| deck.limits(request)).await
+}
+
+/// The sessions in which the query's text was said.
+#[tauri::command]
+async fn search(deck: State<'_, Arc<Deck>>, request: Query) -> Result<Vec<Hit>, String> {
+    waiting(&deck, move |deck| deck.search(&request)).await
 }
 
 /// What the machine is doing now.
@@ -102,6 +110,7 @@ fn main() -> Result<()> {
             pane,
             usage,
             limits,
+            search,
             monitor,
             fonts,
             selftest_done

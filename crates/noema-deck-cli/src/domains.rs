@@ -54,7 +54,7 @@ fn show(snapshot: &Snapshot, domain: DomainId, all: bool) -> Result<()> {
     };
     let listed =
         snapshot.sessions.iter().filter(|session| on_domain(&session.key, &session.domains));
-    print::sessions(snapshot, listed);
+    print::sessions(snapshot, listed, |_| None);
     for session in
         snapshot.missing.iter().filter(|session| on_domain(&session.key, &session.domains))
     {

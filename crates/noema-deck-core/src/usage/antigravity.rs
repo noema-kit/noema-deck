@@ -7,34 +7,12 @@
 //!
 //! Antigravity counts input apart from cached input.
 
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-};
+use std::{fs::File, path::Path};
 
-use anyhow::Result;
 use serde::Deserialize;
 
-use super::{Records, Reply, Tokens, lines, seconds};
-use crate::agent::entries;
-
-const TRANSCRIPT: &str = ".system_generated/logs/transcript_full.jsonl";
-
-/// Every transcript of the CLI whose folder is `home`, and of the editor.
-pub(super) fn files(home: &Path) -> Result<Vec<PathBuf>> {
-    let mut found = Vec::new();
-    let editor = home.with_file_name("antigravity");
-    let apps = if editor == home { vec![editor] } else { vec![home.to_owned(), editor] };
-    for app in apps {
-        for conversation in entries(&app.join("brain"))? {
-            let transcript = conversation.join(TRANSCRIPT);
-            if transcript.is_file() {
-                found.push(transcript);
-            }
-        }
-    }
-    Ok(found)
-}
+use super::{Records, Reply, Tokens, seconds};
+use crate::records::lines;
 
 #[derive(Deserialize)]
 #[expect(clippy::struct_field_names, reason = "The names Antigravity writes")]
@@ -104,7 +82,10 @@ fn model_chosen(content: &str) -> Option<String> {
 mod tests {
     use std::fs;
 
+    use anyhow::Result;
+
     use super::*;
+    use crate::agent::antigravity::{TRANSCRIPT, transcripts};
 
     #[test]
     fn counts_finished_replies_with_the_model_chosen() -> Result<()> {
@@ -118,7 +99,7 @@ mod tests {
             r#"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","model":"gemini-4-argon","output_tokens":3}"#,
         ];
         fs::write(&logs, lines.join("\n"))?;
-        assert_eq!(files(dir.path())?, std::slice::from_ref(&logs));
+        assert_eq!(transcripts(dir.path())?, std::slice::from_ref(&logs));
         let replies: Vec<_> = read(&logs)
             .replies
             .into_iter()

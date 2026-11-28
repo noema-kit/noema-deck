@@ -7,20 +7,13 @@
 //!
 //! Codex counts cached input within its input, and reasoning within output.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use anyhow::Result;
 use serde::Deserialize;
 
-use super::{Records, Reply, Tokens, Window, lines, seconds};
+use super::{Records, Reply, Tokens, Window, seconds};
 use crate::agent::codex;
-
-/// Every rollout under the Codex folder `home`, archived ones included.
-pub(super) fn files(home: &Path) -> Result<Vec<PathBuf>> {
-    let mut found = codex::rollouts(&home.join("sessions"))?;
-    found.extend(codex::archived(home)?);
-    Ok(found)
-}
+use crate::records::lines;
 
 #[derive(Deserialize)]
 struct Line {
@@ -145,6 +138,8 @@ pub(super) fn read(path: &Path) -> Records {
 #[cfg(test)]
 mod tests {
     use std::fs;
+
+    use anyhow::Result;
 
     use super::*;
 

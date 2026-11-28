@@ -30,6 +30,11 @@ printf '{"cachedUsageUtilization":{"fetchedAtMs":%s000,"utilization":{"limits":[
 printf '{"type":"assistant","sessionId":"00000001-0000-4000-8000-000000000000","timestamp":"%s","message":{"id":"msg_1","model":"claude-opus-5-5","stop_reason":"end_turn","usage":{"input_tokens":100,"cache_read_input_tokens":800,"cache_creation_input_tokens":50,"output_tokens":50}}}\n' "$now" \
     >> "$sessions/00000001-0000-4000-8000-000000000000.jsonl"
 
+# What was said in Beta, which a search reads.
+printf '%s\n' '{"type":"user","message":{"role":"user","content":"Why does the journal replay twice?"}}' \
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"It is replayed once per mount."}]}}' \
+    >> "$sessions/00000002-0000-4000-8000-000000000000.jsonl"
+
 # A Codex rollout: what the session is and where it ran, then its first prompt.
 day="$work/codex/sessions/2026/11/26"
 mkdir -p "$day"
@@ -44,6 +49,10 @@ chmod +x "$work/rollout"
 "$work/rollout" 01a20000-0000-7000-8000-000000000001 "$work" Delta
 # A reply in Delta that took 2,000 tokens, with a quarter of the week's allowance used.
 printf '{"timestamp":"%s","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1500,"cached_input_tokens":1000,"output_tokens":500,"total_tokens":2000},"last_token_usage":{"input_tokens":1500,"cached_input_tokens":1000,"output_tokens":500,"total_tokens":2000}},"rate_limits":{"primary":{"used_percent":25.0,"window_minutes":10080,"resets_at":4102444800},"secondary":null}}}\n' "$now" \
+    >> "$day/rollout-2026-11-26T10-00-00-01a20000-0000-7000-8000-000000000001.jsonl"
+
+# What Codex answered in Delta.
+printf '%s\n' '{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Journal written to disk."}]}}' \
     >> "$day/rollout-2026-11-26T10-00-00-01a20000-0000-7000-8000-000000000001.jsonl"
 
 # An Antigravity conversation: its summary, where `agy` lists it, and its file.

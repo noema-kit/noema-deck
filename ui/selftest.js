@@ -211,6 +211,33 @@ const steps = [
     const parents = [...$("domain-links").querySelectorAll(".go")].map((node) => node.textContent);
     expect(parents.sort().join() === "AI,System", `parents were ${parents}`);
   }],
+  ["a search finds a session by what was said in it, in the list and in the history", async () => {
+    const search = (box, text) => {
+      $(box).focus();
+      $(box).value = text;
+      $(box).dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    // A title matches as it is typed, with nothing to wait for.
+    search("list-search", "alp");
+    expect(leaves().length > 0 && leaves().every((title) => title === "Alpha"), `a title found ${leaves()}`);
+    // What the agent answered in Beta, in other letters' case, comes a moment later with the place it was said.
+    search("list-search", "REPLAYED once");
+    await until("the session that said it", () => leaves().length > 0 && leaves().every((title) => title === "Beta"));
+    const quote = $("tree").querySelector(".quote .said");
+    expect(quote.querySelector("mark").textContent === "replayed once", `the list marked "${quote.textContent}"`);
+    expect(quote.textContent === "It is replayed once per mount.", `the list quoted "${quote.textContent}"`);
+    search("list-search", "");
+    expect(leaves().sort().join() === "Alpha,Beta" && !$("tree").querySelector(".quote"), `the list kept ${leaves()}`);
+
+    // The history finds a session of another agent the same way.
+    $("add-existing").click();
+    await until("the history", () => titles("picker-list").length === 3);
+    search("picker-search", "journal");
+    await until("the session that said it", () => titles("picker-list").join() === "Delta");
+    const said = row("picker-list", "Delta").querySelector(".said");
+    expect(said.textContent === "Journal written to disk." && said.querySelector("mark").textContent === "Journal", `the history quoted "${said.textContent}"`);
+    $("picker-cancel").click();
+  }],
   ["a subdomain is added from the panel, and the sessions' rows stay in place as the panel is drawn again", async () => {
     // A row made again would lose its height while out of sight, and a long list would slide under its reader.
     const rows = [...$("domain-sessions").children];

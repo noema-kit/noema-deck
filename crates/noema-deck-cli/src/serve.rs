@@ -100,17 +100,17 @@ impl Server {
             return Response::text("403 Forbidden");
         }
         match (request.method.as_str(), request.path.as_str()) {
-            ("POST", route @ ("/map" | "/pane" | "/usage" | "/limits" | "/monitor" | "/fonts"))
-                if request.is_json =>
-            {
-                match self.call(route, &request.body) {
-                    Ok(body) => Response { status: "200 OK", kind: "application/json", body },
-                    Err(error) => {
-                        let body = json!({ "error": format!("{error:#}") }).to_string().into();
-                        Response { status: "400 Bad Request", kind: "application/json", body }
-                    }
+            (
+                "POST",
+                route @ ("/map" | "/pane" | "/usage" | "/limits" | "/search" | "/monitor"
+                | "/fonts"),
+            ) if request.is_json => match self.call(route, &request.body) {
+                Ok(body) => Response { status: "200 OK", kind: "application/json", body },
+                Err(error) => {
+                    let body = json!({ "error": format!("{error:#}") }).to_string().into();
+                    Response { status: "400 Bad Request", kind: "application/json", body }
                 }
-            }
+            },
             ("POST", "/selftest") if self.selftest && request.is_json => finish(&request.body),
             ("GET", path) if !path.contains("..") => self.file(path),
             _ => Response::text("400 Bad Request"),
@@ -128,6 +128,8 @@ impl Server {
         } else if route == "/limits" {
             let request: LimitsRequest = serde_json::from_slice(body).context(invalid)?;
             serde_json::to_vec(&self.deck.limits(request)?)
+        } else if route == "/search" {
+            serde_json::to_vec(&self.deck.search(&serde_json::from_slice(body).context(invalid)?)?)
         } else if route == "/pane" {
             serde_json::to_vec(&self.deck.pane(serde_json::from_slice(body).context(invalid)?)?)
         } else {

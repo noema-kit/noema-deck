@@ -28,7 +28,7 @@ const INDEX: &str = "session_index.jsonl";
 /// The sources of sessions a person can resume: the terminal interface, and
 /// the editor and desktop apps. Sub-agents and non-interactive runs are left
 /// out, as Codex's own `resume` does.
-const INTERACTIVE: [&str; 2] = ["cli", "vscode"];
+pub(crate) const INTERACTIVE: [&str; 2] = ["cli", "vscode"];
 
 /// Codex's own folder: `$CODEX_HOME`, else `~/.codex`.
 pub fn home() -> Result<PathBuf> {
@@ -155,7 +155,7 @@ fn names(index: &Path) -> Result<HashMap<String, String>> {
 }
 
 /// Every rollout under `sessions`, which holds a folder per year, month and day.
-pub(crate) fn rollouts(sessions: &Path) -> Result<Vec<PathBuf>> {
+fn rollouts(sessions: &Path) -> Result<Vec<PathBuf>> {
     let mut found = Vec::new();
     for year in entries(sessions)?.iter().filter(|path| path.is_dir()) {
         for month in entries(year)?.iter().filter(|path| path.is_dir()) {
@@ -169,11 +169,18 @@ pub(crate) fn rollouts(sessions: &Path) -> Result<Vec<PathBuf>> {
 
 /// Every rollout Codex moved to `<home>/archived_sessions`, which holds no
 /// folders.
-pub(crate) fn archived(home: &Path) -> Result<Vec<PathBuf>> {
+fn archived(home: &Path) -> Result<Vec<PathBuf>> {
     Ok(entries(&home.join("archived_sessions"))?
         .into_iter()
         .filter(|path| is_rollout(path))
         .collect())
+}
+
+/// Every rollout under the Codex folder `home`, archived ones included.
+pub(crate) fn every_rollout(home: &Path) -> Result<Vec<PathBuf>> {
+    let mut found = rollouts(&home.join("sessions"))?;
+    found.extend(archived(home)?);
+    Ok(found)
 }
 
 /// Opens a rollout to read, uncompressing one Codex has compressed.
@@ -278,11 +285,14 @@ fn read_rollout(path: &Path) -> Option<Rollout> {
 /// The first line of a prompt a person typed. Codex sends its context and
 /// instructions as messages from the person too, in tags or under a heading.
 fn typed(text: &str) -> Option<String> {
+    is_typed(text)
+        .then(|| text.lines().map(str::trim).find(|line| !line.is_empty()).map(String::from))?
+}
+
+/// Whether a message from the person is one they typed.
+pub(crate) fn is_typed(text: &str) -> bool {
     let text = text.trim_start();
-    if text.starts_with('<') || text.starts_with("# AGENTS.md") {
-        return None;
-    }
-    text.lines().map(str::trim).find(|line| !line.is_empty()).map(String::from)
+    !(text.starts_with('<') || text.starts_with("# AGENTS.md"))
 }
 
 #[cfg(test)]

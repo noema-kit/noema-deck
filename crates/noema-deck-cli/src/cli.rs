@@ -30,6 +30,11 @@ pub enum Command {
         #[arg(long, value_name = "TEXT")]
         query: Option<String>,
     },
+    /// Find the sessions in which a phrase was said, by you or the agent.
+    Search {
+        /// The phrase, in any case.
+        text: String,
+    },
     /// Open a session in its agent.
     Open {
         /// The session's ID, or the start of it.

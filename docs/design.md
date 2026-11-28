@@ -34,7 +34,7 @@ The session list runs down the left, and the map, the terminal or the monitor fi
 | Terminal | Panes tiled in rows and columns. Panes out of sight keep running. |
 | Monitor | The machine's processors, memory, graphics, network and disks, the open panes and the processes. |
 
-- **Domain tree.** A domain is a folder, empty while it has no session. A session carries its agent's logo, Claude's, OpenAI's or Antigravity's, and its time; a running one shows its [state](#sessions) in the logo's corner. A shell carries a terminal window. A domain with two parents appears under both. A search unfolds everything and keeps what matches. Folding is remembered.
+- **Domain tree.** A domain is a folder, empty while it has no session. A session carries its agent's logo, Claude's, OpenAI's or Antigravity's, and its time; a running one shows its [state](#sessions) in the logo's corner. A shell carries a terminal window. A domain with two parents appears under both. A search unfolds everything and keeps what matches, by name or by [what was said](#sessions). Folding is remembered.
 - **Sizes.** The list, the panel and the dividers between panes drag by their edges and are remembered.
 - **Zoom.** ⌘= and ⌘− draw the whole window larger or smaller, from 67% to 200%, and ⌘0 puts it back, as in Claude's desktop app. The zoom is remembered. In a browser, the browser zooms its own page.
 
@@ -48,6 +48,7 @@ The session list runs down the left, and the map, the terminal or the monitor fi
 
 - **New session.** Choose an agent, a domain, a folder and an optional name. The session is assigned at once, and the agent is remembered for next time. Claude Code takes the name as `--name`. Codex and Antigravity choose the session's ID themselves, so Deck follows the first new session of that agent in that folder and names it once the agent has stored it. Each stores a session at its first prompt, so one closed before then is dropped, as is one still waiting when Deck quit. While one waits, another new session of that agent in that folder is refused, as Deck could not tell the two apart.
 - **Add existing.** A picker over every agent's whole history, which can show one agent only.
+- **Search.** The list's search and the picker's find a session by its title, folder or agent as you type, and a moment later by what was said in it: what you typed and what the agent answered, in any letters' case. Such a session shows the first place the phrase was said beneath its title. What tools printed is not searched.
 - **Titles.** The agent's own title or name, else the first prompt, else, for Claude Code, the first command, such as `/login`.
 - **Renaming.** A double click on a row or a pane's title. Deck writes the name where the agent keeps it, as its own renaming does, so both agree.
 - **State.** Claude Code and Antigravity say what they are doing, and Deck shows it: active while one works, waiting while it needs your permission, your answer or a sign-in, and ready once it finished out of sight. A waiting session takes the theme's warning colour, says what it waits for under the pointer, and puts a dot of that colour on the terminal button, where a ready one puts its own. Of a program that says nothing, such as Codex or a shell, Deck knows only the output: active while it writes, quiet after three seconds, and ready when it fell quiet with output nobody saw.

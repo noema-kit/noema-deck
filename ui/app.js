@@ -122,8 +122,8 @@ let drawn = ""; // The snapshot on screen, as the text it arrived in.
 /**
  * Sends one request down a route: "map" for domains and sessions, "pane" for a
  * terminal, "usage" for the tokens the agents used, "limits" for how much of
- * each plan is used, "monitor" for what the machine is doing, "fonts" for the
- * installed typefaces.
+ * each plan is used, "search" for the sessions in which a phrase was said,
+ * "monitor" for what the machine is doing, "fonts" for the installed typefaces.
  */
 export async function send(route, request) {
   if (tauri) {
@@ -189,8 +189,50 @@ const keyOf = (session) => `${session.agent}/${session.id}`;
 const refOf = (session) => ({ agent: session.agent, id: session.id });
 const domainById = (id) => state.snapshot.domains.find((domain) => domain.id === id);
 const sessionByKey = (key) => state.snapshot.sessions.find((session) => keyOf(session) === key);
+
+/** The sessions in which a phrase was said, as the core last answered: the phrase, to a session's key, to where it was said. */
+const said = new Map();
+const SEEK = 200; // Milliseconds a search waits for typing to pause before it asks.
+const phraseOf = (query) => query.trim().toLowerCase();
+/** Where a search's phrase was said in a session, if it was. */
+const hitOf = (session, query) => said.get(phraseOf(query))?.get(keyOf(session));
+/** Whether a search keeps a session: by its title, folder or agent, or by what was said in it. */
 const matches = (session, query) =>
-  `${session.title}\n${session.folder ?? ""}\n${AGENTS[session.agent]}`.toLowerCase().includes(query.trim().toLowerCase());
+  `${session.title}\n${session.folder ?? ""}\n${AGENTS[session.agent]}`.toLowerCase().includes(phraseOf(query)) || Boolean(hitOf(session, query));
+
+/**
+ * Asks in which sessions a search's phrase was said, once typing pauses, and
+ * draws again when the answer comes. Titles match at once, without waiting.
+ */
+function seek(query, draw) {
+  const phrase = phraseOf(query);
+  clearTimeout(seek.timer);
+  if (phrase.length < 2 || said.has(phrase)) return;
+  seek.timer = setTimeout(async () => {
+    const hits = await send("search", { text: phrase }).catch(() => []);
+    said.set(phrase, new Map(hits.map((hit) => [keyOf(hit), hit])));
+    draw();
+  }, SEEK);
+}
+
+/**
+ * A search begins: what was found before is forgotten, as the sessions have
+ * gone on since, and the core reads what was said meanwhile, so the first
+ * answer need not wait for it.
+ */
+function beginSearch() {
+  said.clear();
+  send("search", { text: "" }).catch(() => {});
+}
+
+/** The place a phrase was said, with the phrase marked. `lead` bounds the characters shown before it, so it stays in sight in a narrow row. */
+function saidLine(hit, lead = Infinity) {
+  const before = [...hit.before];
+  const cut = before.length > lead ? `…${before.slice(-lead).join("").trimStart()}` : hit.before;
+  const line = el("span", { className: "said" }, cut, el("mark", { textContent: hit.found }), hit.after);
+  line.title = `Said ${hit.count === 1 ? "once" : `${hit.count} times`}: ${hit.before}${hit.found}${hit.after}`;
+  return line;
+}
 
 function ago(seconds) {
   const elapsed = Date.now() / 1000 - seconds;
@@ -581,9 +623,16 @@ function domainRows(tree, domain, depth, path) {
   if (!open) return [row];
 
   const all = searching || state.more.has(path) || sessions.length <= SHOWN + 1;
-  const leaves = (all ? sessions : sessions.slice(0, SHOWN)).map((session) => {
+  const leaves = (all ? sessions : sessions.slice(0, SHOWN)).flatMap((session) => {
     const pane = panes.find((item) => item.key === keyOf(session));
-    return sessionNode(session, pane, depth + 1, domain.id);
+    const row = sessionNode(session, pane, depth + 1, domain.id);
+    const hit = hitOf(session, state.query);
+    if (!hit) return row;
+    // What was said goes on a row of its own beneath, which opens the session too.
+    const line = node("quote", depth + 1, saidLine(hit, 8));
+    line.tabIndex = -1;
+    line.addEventListener("click", () => row.click());
+    return [row, line];
   });
   if (!all) {
     const more = node("more", depth + 1, el("span", { className: "mark" }), el("span", { className: "kind" }), el("span", { className: "title", textContent: `${sessions.length - SHOWN} more` }));
@@ -710,7 +759,9 @@ setInterval(() => panes.some((pane) => pane.key) && document.hasFocus() && run("
 $("list-search").addEventListener("input", () => {
   state.query = $("list-search").value;
   renderList();
+  seek(state.query, renderList);
 });
+$("list-search").addEventListener("focus", beginSearch);
 
 $("toggle-list").addEventListener("click", () => showList(!state.listed));
 $("new-session").addEventListener("click", () => openStarter($("new-session")));
@@ -891,12 +942,13 @@ function renderPicker() {
   const rows = state.snapshot.sessions
     .filter((session) => !session.domains.includes(domain.id) && (!state.pickAgent || session.agent === state.pickAgent))
     .filter((session) => matches(session, $("picker-search").value))
-    .map((session) => [shownOf(session), () => {
+    .map((session) => [session, hitOf(session, $("picker-search").value)])
+    .map(([session, hit]) => [shownOf(session, hit), () => {
       const key = keyOf(session);
       const title = el("div", { className: "title", textContent: session.title, title: session.title });
       const when = el("div", { className: "when", textContent: ago(session.updated) });
       const folder = el("div", { className: "folder", title: AGENTS[session.agent] }, agentMark(session.agent), session.folder ?? "No folder");
-      const row = el("li", { className: "session pick", tabIndex: 0 }, title, when, folder, chips(session));
+      const row = el("li", { className: "session pick", tabIndex: 0 }, title, when, folder, hit && saidLine(hit), chips(session));
       row.setAttribute("role", "option");
       const mark = () => {
         when.textContent = ago(session.updated);
@@ -926,7 +978,11 @@ function countPicked() {
   $("picker-add").disabled = !state.picked.size;
 }
 
-$("picker-search").addEventListener("input", renderPicker);
+$("picker-search").addEventListener("input", () => {
+  renderPicker();
+  seek($("picker-search").value, renderPicker);
+});
+$("picker-search").addEventListener("focus", beginSearch);
 $("picker-cancel").addEventListener("click", closePicker);
 $("picker").addEventListener("pointerdown", (event) => event.target === $("picker") && closePicker());
 

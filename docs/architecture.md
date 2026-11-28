@@ -6,8 +6,8 @@ How Deck is built. [Design](design.md) says what it does.
 
 ```mermaid
 flowchart LR
-    UI["ui/: map, lists, terminals, monitor and settings"] -->|map, pane, usage, limits, monitor| APP["noema-deck: desktop window"]
-    UI -->|/map, /pane, /usage, /limits, /monitor| CLI["noema-deck-cli: commands and local server"]
+    UI["ui/: map, lists, terminals, monitor and settings"] -->|map, pane, usage, limits, search, monitor| APP["noema-deck: desktop window"]
+    UI -->|/map, /pane, /usage, /limits, /search, /monitor| CLI["noema-deck-cli: commands and local server"]
     APP --> CLI
     APP --> CORE["noema-deck-core"]
     CLI --> CORE
@@ -34,6 +34,8 @@ flowchart LR
 | `map` | Domains, links and assignments joined with the agents' sessions. One `Request` goes in and one `Snapshot` comes out. `map::arrange` lays the domains out by depth around one centre. |
 | `pane` | Terminal panes on pseudoterminals. |
 | `usage`, `usage::claude`, `usage::codex`, `usage::antigravity` | The tokens each agent's records hold, added up by day, model and session. `usage::limits` asks each agent how much of its plan is used. |
+| `search`, `search::claude`, `search::codex`, `search::antigravity` | What was said in each session, and the sessions that hold a phrase. |
+| `records` | The agents' files, each read once and again only when it changes, on every core. `usage` and `search` both read through it. |
 | `monitor`, `monitor::processes` | What the machine is doing: processors, memory, graphics, disks and network, every process, and what each pane's processes add up to. |
 | `fonts` | The installed typefaces, read once: which share one width, and which draw prompt icons. |
 | `deck` | One running Deck: the map behind a lock, the panes, the usage as last read, and the machine's readings. |
@@ -53,7 +55,7 @@ sequenceDiagram
     M-->>UI: Snapshot: domains, links, sessions, missing
 ```
 
-Every rule lives in the core: a refused link, a domain's count, which sessions are missing. The window and the server pass the same routes through unchanged, `map`, `pane`, `usage`, `limits`, `monitor` and `fonts`, so the interface behaves the same in both. A snapshot equal to the one on screen is not drawn again. An agent whose records cannot be read, say mid-update, keeps the sessions last read, so the others stay listed and Deck still starts.
+Every rule lives in the core: a refused link, a domain's count, which sessions are missing. The window and the server pass the same routes through unchanged, `map`, `pane`, `usage`, `limits`, `search`, `monitor` and `fonts`, so the interface behaves the same in both. A snapshot equal to the one on screen is not drawn again. An agent whose records cannot be read, say mid-update, keeps the sessions last read, so the others stay listed and Deck still starts.
 
 ## Interface
 
@@ -124,6 +126,23 @@ So the pages open on figures at hand:
 - **Antigravity's last answer** is kept in `limits.json` beside the store, as `agy` keeps none. Claude Code keeps its own.
 - **Each card** asks its own agent, and takes the answer as it comes, showing the last one until then.
 - **The desktop window** runs every command on the runtime's threads for blocking work. On its few workers, a handful of panes waiting up to twenty seconds for output would leave every other request in line.
+
+## Search
+
+The `search` route takes a phrase and answers with the sessions in which it was said: each one's key, how often, and the first place, as the text before it, the phrase as written, and the text after.
+
+| Agent | Text read |
+| --- | --- |
+| Claude Code | `user` and `assistant` records of a session's transcript: a message that is a string, and the `text` blocks of one in blocks. Records marked `isMeta`, tools' results, reasoning and sub-agents' transcripts are left out |
+| Codex | `user` and `assistant` messages of a rollout a person can resume, without the context and instructions Codex sends as the person's |
+| Antigravity | The content of `USER_INPUT` and `PLANNER_RESPONSE` steps |
+
+- **Kept in memory.** What was said is a small part of a record: 25 MB of 2.3 GB on the machine this was written on. It is read when a search box is first entered, in a little over a second there, and a file is read again only when it changes. Nothing is written to disk.
+- **Matching.** A phrase matches as typed, with the letters A to Z in either case, and a search over everything takes a few hundredths of a second. Two characters are the fewest looked for.
+- **Lines.** Codex writes a record's kind first, so only the head of a line is looked at to tell a message from megabytes of a tool's output.
+- **In the interface**, a title matches at once and what was said follows when typing pauses, so the list never waits for the core.
+
+Antigravity's steps were read from conversations that held no reply, so the field its answers lie in is taken to be the one its prompts use.
 
 ## Monitor
 

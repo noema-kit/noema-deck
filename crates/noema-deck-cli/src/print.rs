@@ -5,8 +5,13 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Local};
 use noema_deck_core::{DomainId, Snapshot, map::SessionView};
 
-/// Prints one line per session: last activity, agent, ID, domains, folder and title.
-pub fn sessions<'a>(snapshot: &Snapshot, shown: impl IntoIterator<Item = &'a SessionView>) {
+/// Prints one line per session: last activity, agent, ID, domains, folder and
+/// title, and under it what `note` has to say of the session.
+pub fn sessions<'a>(
+    snapshot: &Snapshot,
+    shown: impl IntoIterator<Item = &'a SessionView>,
+    note: impl Fn(&SessionView) -> Option<String>,
+) {
     let names = names(snapshot);
     let rows: Vec<_> = shown
         .into_iter()
@@ -18,14 +23,25 @@ pub fn sessions<'a>(snapshot: &Snapshot, shown: impl IntoIterator<Item = &'a Ses
             let domains = if domains.is_empty() { "-".into() } else { domains.join(", ") };
             let folder = session.folder.clone().unwrap_or_else(|| "-".into());
             let title: String = session.title.chars().take(80).collect();
-            [updated, session.key.agent.to_string(), session.key.id.clone(), domains, folder, title]
+            let row = [
+                updated,
+                session.key.agent.to_string(),
+                session.key.id.clone(),
+                domains,
+                folder,
+                title,
+            ];
+            (row, note(session))
         })
         .collect();
     let width =
-        |column: usize| rows.iter().map(|row| row[column].chars().count()).max().unwrap_or(0);
+        |column: usize| rows.iter().map(|(row, _)| row[column].chars().count()).max().unwrap_or(0);
     let (agent, domains, folder) = (width(1), width(3), width(4));
-    for [updated, by, id, on, at, title] in &rows {
+    for ([updated, by, id, on, at, title], note) in &rows {
         println!("{updated}  {by:agent$}  {id}  {on:domains$}  {at:folder$}  {title}");
+        if let Some(note) = note {
+            println!("    {note}");
+        }
     }
 }
 
