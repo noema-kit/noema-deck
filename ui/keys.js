@@ -52,8 +52,8 @@ export function display(key) {
 }
 
 /**
- * The key a press makes, or null without Command or Control, which every
- * shortcut is held with. Elsewhere than macOS, Control with a letter belongs
+ * The key a press makes, or null without Command (Control elsewhere than
+ * macOS), which every shortcut is held with, so Control keys reach the terminal. Elsewhere than macOS, Control with a letter belongs
  * to the terminal, so a letter's shortcut takes Shift as well, and that Shift
  * is not part of the key.
  */
@@ -66,7 +66,7 @@ export function pressed(event) {
     shift = false;
   }
   const held = mac ? event.metaKey : event.ctrlKey;
-  if (!held && !(mac && event.ctrlKey)) return null;
+  if (!held) return null;
   const parts = [];
   if (mac && event.ctrlKey) parts.push("ctrl");
   if (event.altKey) parts.push("alt");

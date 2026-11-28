@@ -574,6 +574,7 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .pane header { display: flex; flex: none; align-items: center; gap: 2px; height: var(--top); padding: 0 6px 0 14px; border-bottom: 1px solid var(--line); }
@@ -581,9 +582,10 @@ footer.actions { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line
 body:not(.listed) .pane.corner header { padding-left: calc(var(--lights) + 120px); }
 .pane .gap { flex: 1; align-self: stretch; }
 .pane.active header { box-shadow: inset 0 -1px var(--accent); }
-/* The title keeps its width, up to a point, and the folder gives way. */
-.pane .title { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 calc(15px * var(--display-size)) var(--font-display); }
-.pane .sub { flex: 0 1 auto; min-width: 0; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+/* The folder takes only the room left, up to its own width, so it gives way
+   first; the title shrinks only to keep the buttons in view. */
+.pane .title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 calc(15px * var(--display-size)) var(--font-display); }
+.pane .sub { flex: 1000 1 0; min-width: 0; max-width: max-content; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .pane .term { flex: 1; min-height: 0; padding: 8px 2px 4px 12px; }
 
 /* Floating pieces */
@@ -598,7 +600,7 @@ body:not(.listed) .pane.corner header { padding-left: calc(var(--lights) + 120px
   box-shadow: var(--shadow);
 }
 
-#starter { display: grid; grid-template-columns: 1fr auto; gap: 6px; width: 320px; padding: 10px; }
+#starter { display: grid; grid-template-columns: 1fr auto; gap: 6px; width: 352px; padding: 10px; }
 #starter select, #starter-name, #starter-agent { grid-column: 1 / -1; }
 #starter-agent { display: flex; }
 #starter-agent button, #picker-agent button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }

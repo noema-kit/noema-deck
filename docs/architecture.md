@@ -39,7 +39,7 @@ flowchart LR
 
 ## One request, one snapshot
 
-The interface keeps no state of its own about domains or sessions. It sends a request and draws the snapshot that comes back.
+The interface keeps no state of its own about domains or sessions. It sends a request and draws the snapshot that comes back. Requests go one after another, so they reach the core, and their snapshots come back, in the order sent.
 
 ```mermaid
 sequenceDiagram

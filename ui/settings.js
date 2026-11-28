@@ -42,11 +42,13 @@ async function openMenu(id) {
   const items = [{ family: null }, ...fonts.filter(fits)];
   menu = { id, items, at: Math.max(0, items.findIndex((item) => item.family === chosen)) };
   const box = $(id).getBoundingClientRect();
-  // Below the button, as tall as the window leaves room for.
-  const room = Math.max(180, Math.min(340, innerHeight - box.bottom - 16));
+  // Below the button, as tall as the window leaves room for, or above it when there is more room there.
+  const [below, above] = [innerHeight - box.bottom - 16, box.top - 16];
+  const up = below < 180 && above > below;
+  const room = Math.min(340, Math.max(120, up ? above : below));
   Object.assign($("font-menu").style, {
     left: `${box.left}px`,
-    top: `${box.bottom + 4}px`,
+    top: `${up ? box.top - 4 - room : box.bottom + 4}px`,
     width: `${box.width}px`,
     maxHeight: `${room}px`,
   });

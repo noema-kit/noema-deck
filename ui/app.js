@@ -11,6 +11,7 @@ import { apply, loadThemes, look, watch } from "./theme.js";
 const tauri = window.__TAURI__;
 // The narrowest, usual and widest a part beside the map can be dragged.
 const WIDTHS = { list: [200, 264, 520], panel: [260, 320, 560] };
+const MAP_ROOM = 240; // The least width the list and the panel leave the map.
 // The sizes the window can be zoomed to, as multiples of its actual size.
 const ZOOMS = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 const QUIET = 3000; // Milliseconds without output before an open session counts as quiet.
@@ -139,7 +140,18 @@ export async function send(route, request) {
   return body;
 }
 
-const call = (command, args) => send("map", args ? { command, args } : { command });
+let mapping = Promise.resolve(); // The map request last sent, which the next one waits for.
+
+/**
+ * Sends a map request once the one before it is answered. Sent at once, a
+ * later change could reach the core first and be undone by an earlier one,
+ * and an older snapshot could be drawn over a newer one.
+ */
+function call(command, args) {
+  const reply = mapping.then(() => send("map", args ? { command, args } : { command }));
+  mapping = reply.catch(() => {});
+  return reply;
+}
 const paneCall = (command, args) => send("pane", { command, args });
 
 /** Sends a request and draws the answer. Resolves to false when it is refused. */
@@ -269,9 +281,24 @@ export function showList(listed) {
 export function setWidth(part, width) {
   const [least, usual, most] = WIDTHS[part];
   state.widths[part] = Math.round(Math.min(most, Math.max(least, width || usual)));
-  document.body.style.setProperty(`--${part}`, `${state.widths[part]}px`);
   keep(`${part}-width`, state.widths[part]);
+  fitWidths();
 }
+
+/**
+ * Draws the list and the panel at their widths, narrowed as far as their
+ * least while a small window would leave the map too little room.
+ */
+function fitWidths() {
+  const spare = innerWidth - MAP_ROOM - state.widths.list - state.widths.panel;
+  for (const part of ["panel", "list"]) {
+    const [least] = WIDTHS[part];
+    const width = Math.max(least, state.widths[part] + Math.min(0, spare / 2));
+    document.body.style.setProperty(`--${part}`, `${Math.round(width)}px`);
+  }
+}
+
+addEventListener("resize", fitWidths);
 
 /** Follows the pointer from a press on `handle` until it lets go, calling `move` with each event. */
 function dragging(handle, move) {
@@ -357,6 +384,9 @@ function clicks(node, once, twice) {
   });
 }
 
+/** Whether a name is being typed in `part`, which drawing it again would throw away. */
+const typingIn = (part) => Boolean($(part).querySelector("input.rename"));
+
 /** Turns a title into a box for a new name, given to `apply`. Enter or leaving the box keeps it, Escape puts the old one back. */
 function rename(node, apply) {
   if (!apply || node.querySelector("input")) return;
@@ -372,6 +402,9 @@ function rename(node, apply) {
     done = true;
     const title = input.value.trim();
     node.textContent = old;
+    // What changed while the name was typed is drawn now.
+    renderList();
+    renderPanel();
     if (keep && title && title !== old) apply(title);
   };
   input.addEventListener("keydown", (event) => {
@@ -491,16 +524,20 @@ function domainRows(tree, domain, depth, path) {
     button("", icon("add"), "New session here", () => openStarter(row, domain.id)),
   );
   const row = node(`domain${open ? "" : " folded"}${count ? "" : " empty"}`, depth, mark, kind, title, meta, tools);
-  Object.assign(row.dataset, { domain: domain.id });
+  Object.assign(row.dataset, { domain: domain.id, path });
   row.setAttribute("role", "treeitem");
   if (holds) row.setAttribute("aria-expanded", String(open));
   row.title = `${domain.name}\nDouble-click to rename`;
   row.classList.toggle("current", state.view === "map" && state.focus === domain.id);
   const toggle = () => holds && !searching && unfold([path], !open);
-  row.addEventListener("click", (event) => !event.target.closest("button, input") && toggle());
+  row.addEventListener("click", (event) => event.detail < 2 && !event.target.closest("button, input") && toggle());
   row.addEventListener("dblclick", (event) => {
     if (event.target.closest("button, input")) return;
-    rename(title, (name) => run("rename_domain", { domain: domain.id, name }));
+    // The first click folded or unfolded the domain and drew the tree again,
+    // so the fold goes back and the name is typed in the row now drawn.
+    if (holds && !searching) unfold([path], !state.unfolded.has(path));
+    const now = $("tree").querySelector(`[data-path="${path}"] .title`) ?? title;
+    rename(now, (name) => run("rename_domain", { domain: domain.id, name }));
   });
   row.addEventListener("keydown", (event) => {
     if (event.target !== row) return;
@@ -515,16 +552,19 @@ function domainRows(tree, domain, depth, path) {
   });
   if (!all) {
     const more = node("more", depth + 1, el("span", { className: "mark" }), el("span", { className: "kind" }), el("span", { className: "title", textContent: `${sessions.length - SHOWN} more` }));
-    more.addEventListener("click", () => {
+    const showAll = () => {
       state.more.add(path);
       renderList();
-    });
+    };
+    more.addEventListener("click", showAll);
+    more.addEventListener("keydown", (event) => event.key === "Enter" && showAll());
     leaves.push(more);
   }
   return [row, ...inner, ...leaves];
 }
 
 function renderList() {
+  if (typingIn("list")) return;
   const { domains } = state.snapshot;
   for (const pane of panes) pane.dots = [];
   const open = panes.flatMap((pane) => {
@@ -534,8 +574,11 @@ function renderList() {
   const tree = treeOf();
   const rows = tree.roots.flatMap((root) => domainRows(tree, root, 0, `${root.id}`));
 
+  // Drawing the tree again replaces the row the keyboard was on, so the keyboard moves to the row drawn in its place.
+  const held = document.activeElement?.closest?.("#tree .node")?.dataset.path;
   $("open-list").replaceChildren(...open);
   $("tree").replaceChildren(...rows);
+  if (held) $("tree").querySelector(`[data-path="${held}"]`)?.focus();
   // A folded part keeps its heading, with how much it holds.
   for (const [section, list, count] of [["open", "open-list", open.length], ["tree", "tree", domains.length]]) {
     const folded = state.folded.has(section);
@@ -647,6 +690,7 @@ function linkRow(label, domains, unlink) {
 }
 
 function renderPanel() {
+  if (typingIn("panel")) return;
   const domain = domainById(state.focus);
   $("panel").hidden = !domain || state.view !== "map";
   document.body.classList.toggle("focused", !$("panel").hidden);
@@ -692,7 +736,12 @@ $("domain-name").addEventListener("change", async () => {
 });
 
 $("domain-name").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") $("domain-name").blur();
+  if (event.key === "Escape") {
+    // Escape puts the name back, and only a second one closes the panel.
+    event.stopPropagation();
+    $("domain-name").value = domainById(state.focus)?.name ?? "";
+  }
+  if (event.key === "Enter" || event.key === "Escape") $("domain-name").blur();
 });
 
 $("close-panel").addEventListener("click", () => focus(null));
@@ -705,7 +754,8 @@ $("add-subdomain").addEventListener("click", () => {
   openNamer(box.left, box.top - 44, (text) => addDomain(text, { parent }));
 });
 
-$("delete-domain").addEventListener("click", () => {
+$("delete-domain").addEventListener("click", (event) => {
+  if (event.detail > 1) return;
   if ($("delete-domain").textContent === "Delete") $("delete-domain").textContent = "Confirm delete";
   else run("delete_domain", { domain: state.focus });
 });
@@ -734,9 +784,10 @@ function openStarter(anchor, domain) {
   agentChoice($("starter-agent"), openStarter.agent, (agent) => (openStarter.agent = agent));
 
   const box = anchor.getBoundingClientRect();
-  $("starter").style.left = `${Math.max(8, Math.min(box.left, innerWidth - 308))}px`;
-  $("starter").style.top = `${Math.min(box.bottom + 6, innerHeight - 160)}px`;
   $("starter").hidden = false;
+  const { offsetWidth: wide, offsetHeight: tall } = $("starter");
+  $("starter").style.left = `${Math.max(8, Math.min(box.left, innerWidth - wide - 8))}px`;
+  $("starter").style.top = `${Math.max(8, Math.min(box.bottom + 6, innerHeight - tall - 8))}px`;
   $("starter-name").focus();
 }
 
@@ -753,7 +804,7 @@ $("starter").addEventListener("submit", (event) => {
 });
 
 document.addEventListener("pointerdown", (event) => {
-  if (!event.target.closest("#starter") && event.target !== openStarter.anchor) closeStarter();
+  if (!event.target.closest("#starter") && !openStarter.anchor?.contains(event.target)) closeStarter();
 });
 
 $("show-settings").addEventListener("click", () => openSettings());
@@ -790,12 +841,23 @@ function renderPicker() {
       const title = el("div", { className: "title", textContent: session.title, title: session.title });
       const when = el("div", { className: "when", textContent: ago(session.updated) });
       const folder = el("div", { className: "folder", title: AGENTS[session.agent] }, agentMark(session.agent), session.folder ?? "No folder");
-      const row = el("li", { className: "session pick" }, title, when, folder, chips(session));
-      row.classList.toggle("selected", state.picked.has(key));
-      row.addEventListener("click", () => {
-        if (!state.picked.delete(key)) state.picked.add(key);
+      const row = el("li", { className: "session pick", tabIndex: 0 }, title, when, folder, chips(session));
+      row.setAttribute("role", "option");
+      const mark = () => {
         row.classList.toggle("selected", state.picked.has(key));
+        row.setAttribute("aria-selected", String(state.picked.has(key)));
+      };
+      const tick = () => {
+        if (!state.picked.delete(key)) state.picked.add(key);
+        mark();
         countPicked();
+      };
+      mark();
+      row.addEventListener("click", tick);
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== " " && event.key !== "Enter") return;
+        event.preventDefault();
+        tick();
       });
       return row;
     });
@@ -815,7 +877,7 @@ $("picker").addEventListener("pointerdown", (event) => event.target === $("picke
 
 $("picker").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const sessions = [...state.picked].map((key) => refOf(sessionByKey(key)));
+  const sessions = [...state.picked].map(sessionByKey).filter(Boolean).map(refOf);
   if (await run("assign", { domain: state.focus, sessions })) closePicker();
 });
 
@@ -1212,7 +1274,9 @@ function arrange() {
       pane.node.classList.toggle("corner", top && box.left - edge.left < 2);
     }
     for (const pane of shown) pane.fit.fit();
-    active?.term.focus();
+    // The terminal takes the keys, unless they are being typed somewhere else.
+    const elsewhere = document.activeElement?.matches("input, select") || ["settings", "picker", "starter", "namer"].some((id) => !$(id).hidden);
+    if (!elsewhere) active?.term.focus();
   }
   renderList();
   remember();
