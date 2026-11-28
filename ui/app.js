@@ -1281,7 +1281,10 @@ function arrange() {
     pane.node.hidden = !shown.includes(pane);
     pane.node.classList.toggle("active", pane === active && shown.length > 1);
     pane.hide.hidden = shown.length < 2;
-    pane.again.hidden = !pane.ended;
+    const kept = reopens(pane); // Its agent kept the other mode's colours, and can start again.
+    pane.again.hidden = !pane.ended && !kept;
+    pane.again.title = kept ? `Reopen in ${look.mode} colours` : "Run again";
+    pane.again.setAttribute("aria-label", pane.again.title);
     pane.locate.hidden = !sessionByKey(pane.key)?.domains.length;
   }
   $("shell-empty").hidden = shown.length > 0;
@@ -1449,7 +1452,7 @@ function addPane(name, folder, key, agent = key?.split("/")[0]) {
   const sub = el("span", { className: "sub", textContent: folder ?? "" });
   const body = el("div", { className: "term" });
   const gap = el("span", { className: "gap" });
-  const pane = { serial: ++serials, id: null, key, folder, title, gap, dots: [], ended: false, heard: Date.now(), sent: Promise.resolve() };
+  const pane = { serial: ++serials, id: null, key, agent, folder, title, gap, dots: [], ended: false, heard: Date.now(), sent: Promise.resolve() };
   pane.locate = button("", icon("locate"), "Show on the map", () => locate(pane));
   pane.again = button("", icon("again"), "Run again", () => restart(pane));
   const right = button("", icon("right"), "Split right with a shell", () => split("row", pane));
@@ -1596,25 +1599,35 @@ async function restart(pane) {
 /** Agents that take a light or dark theme when they start, and keep it. */
 const THEMED = new Set(["claude", "antigravity"]);
 
+/** Whether a pane's agent still draws in the colours of the mode it started in, which Deck has since left. */
+const stale = (pane, mode = look.mode) =>
+  THEMED.has(pane.agent) && pane.light !== undefined && pane.light !== (mode === "light") && !pane.hears && !pane.ended;
+
+/**
+ * Whether such a pane can start again on its session. A session its agent
+ * has not stored yet could not be found again.
+ */
+const reopens = (pane, mode) =>
+  stale(pane, mode) && Boolean(sessionByKey(pane.key)) && !state.snapshot.waiting.some((session) => keyOf(session) === pane.key);
+
+/**
+ * How a pane's terminal is drawn. An agent that keeps the other mode's
+ * colours writes dark text on what is now a dark ground, or light on light,
+ * so its text is shifted until it reads, as on a light ground. Its colours
+ * are right again once it is reopened.
+ */
+const dressOf = (pane) => (stale(pane) ? { ...look.terminal, minimumContrastRatio: 4.5 } : look.terminal);
+
 /**
  * Offers to reopen the agents that cannot follow Deck turning light or dark,
  * so they start again on their sessions in the new theme. A reply on its way
  * or a question waiting would be cut short, so the person chooses when.
  */
 function offerReopen(mode) {
-  const waiting = new Set(state.snapshot.waiting.map(keyOf));
-  const stale = panes.filter(
-    (pane) =>
-      THEMED.has(pane.key?.split("/")[0]) &&
-      pane.light !== (mode === "light") &&
-      !pane.hears &&
-      !pane.ended &&
-      sessionByKey(pane.key) &&
-      !waiting.has(pane.key),
-  );
-  if (!stale.length) return;
+  const kept = panes.filter((pane) => reopens(pane, mode));
+  if (!kept.length) return;
   const old = mode === "light" ? "dark" : "light";
-  toast(`Open agents keep their ${old} colours`, { label: "Reopen", act: () => stale.forEach(restart) });
+  toast(`Open agents keep their ${old} colours`, { label: "Reopen", act: () => kept.forEach(restart) });
 }
 
 function locate(pane) {
@@ -1703,10 +1716,10 @@ window.addEventListener("pagehide", () => {
 document.body.classList.toggle("overlaid", Boolean(tauri) && navigator.userAgent.includes("Mac"));
 // A new look repaints the map and restyles every terminal.
 let shownMode = null; // Light or dark, as the terminals were last told.
-watch(({ painter, terminal, mode }) => {
+watch(({ painter, mode }) => {
   map.paintWith(painter);
   for (const pane of panes) {
-    Object.assign(pane.term.options, terminal);
+    Object.assign(pane.term.options, dressOf(pane));
     // The graphics card keeps each glyph drawn in its colours, which a new
     // palette or contrast leaves stale until they are drawn again.
     pane.term.clearTextureAtlas();
@@ -1715,6 +1728,8 @@ watch(({ painter, terminal, mode }) => {
   }
   if (shownMode && mode !== shownMode) offerReopen(mode);
   shownMode = mode;
+  // A pane whose agent kept the old colours gains its button to reopen it, and one that is in step again loses it.
+  arrange();
 });
 setupSettings({
   appearance: (appearance) => run("set_appearance", { appearance }),

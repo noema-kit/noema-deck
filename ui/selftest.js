@@ -527,10 +527,14 @@ const steps = [
     const [first] = panes;
     await mode("dark");
     await until("the offer to reopen", () => toast().includes("keep their light colours"));
+    // Until it is reopened, its dark text is kept readable on the dark ground, and its pane offers the reopening too.
+    expect(first.term.options.minimumContrastRatio === 4.5, "the agent's light colours were left unreadable");
+    expect(!first.again.hidden && first.again.title === "Reopen in dark colours", "the pane did not offer to reopen");
     $("toast").querySelector("button").click();
     await until("Alpha again", () => !panes.includes(first) && terminal().includes("fake agent --resume"));
     expect(!terminal().includes("theme"), "the agent kept the light theme");
     expect(onScreen() === 1 && panes.length === 1, `${panes.length} panes were open`);
+    expect(panes[0].term.options.minimumContrastRatio === 1 && panes[0].again.hidden, "the reopened agent was still treated as out of step");
     await mode("system");
     panes[0].node.querySelector(".close").click();
     await until("the map", () => $("shell").hidden);
