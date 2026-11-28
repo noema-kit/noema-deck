@@ -211,10 +211,14 @@ const steps = [
     const parents = [...$("domain-links").querySelectorAll(".go")].map((node) => node.textContent);
     expect(parents.sort().join() === "AI,System", `parents were ${parents}`);
   }],
-  ["a subdomain is added from the panel", async () => {
+  ["a subdomain is added from the panel, and the sessions' rows stay in place as the panel is drawn again", async () => {
+    // A row made again would lose its height while out of sight, and a long list would slide under its reader.
+    const rows = [...$("domain-sessions").children];
     $("add-subdomain").click();
     await giveName("CXL");
     expect(links() === 3, `expected 3 links, found ${links()}`);
+    await until("the panel drawn again", () => [...$("domain-links").querySelectorAll(".go")].some((node) => node.textContent === "CXL"));
+    expect(rows.length === 2 && rows.every((row, at) => $("domain-sessions").children[at] === row), "the rows were made again");
   }],
   ["the list folds its domains, and a session dropped on one there joins it", async () => {
     unfoldTree();

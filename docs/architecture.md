@@ -57,6 +57,7 @@ Every rule lives in the core: a refused link, a domain's count, which sessions a
 ## Interface
 
 - **Local storage** holds only layout choices, such as panel widths and folded domains. The panes to reopen, the appearance and the shortcuts go to the store, so they follow the store and not the web view.
+- **Session rows** out of sight are not laid out, and the browser knows a row's height only while the row stays in its list. A redraw therefore keeps every row that shows the same and makes only the others, or the rows above a reader would shrink to a guess and the list would slide under them.
 - **Look.** The appearance comes in the snapshot and is changed by a request, like everything else. `theme.js` loads the theme's style sheet and painter, sets the mode and typefaces on the page, and restyles the map and every terminal. `boot.js` runs before the page is drawn and puts on the last run's look from local storage, so the window does not flash the default.
 - **Title bar.** The window's title bar is an overlay, with its buttons centred on the page's top row. The page marks the regions that drag and zoom the window. One capability file grants it those two calls, zooming the page, and the app's version, for Settings.
 

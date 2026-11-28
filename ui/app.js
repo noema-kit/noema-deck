@@ -203,6 +203,28 @@ function el(tag, props = {}, ...children) {
   return node;
 }
 
+/**
+ * Fills a list of sessions with rows, each given as what it shows and how to
+ * make it, and leaves in place every row already there that shows the same.
+ * A row's `mark`, if it has one, brings it up to date.
+ * Rows out of sight are not laid out, and the list knows how tall one is only
+ * while it stays in the list. Made again, the rows above the reader would take
+ * a guessed height, and the list would slide under them at every refresh.
+ */
+function fillRows(list, wanted) {
+  const there = new Map([...list.children].map((row) => [row.shows, row]));
+  const rows = wanted.map(([shows, make]) => there.get(shows) ?? Object.assign(make(), { shows }));
+  // The rows no longer wanted go first, so the ones kept need not move around them: a row moved is forgotten as one made anew is.
+  const kept = new Set(rows);
+  for (const row of [...list.children]) if (!kept.has(row)) row.remove();
+  rows.forEach((row, at) => list.children[at] !== row && list.insertBefore(row, list.children[at] ?? null));
+  // What passes without the session changing, such as its age, is written again on the rows kept.
+  for (const row of rows) row.mark?.();
+}
+
+/** What a session's row shows, as text: the session, the names of its domains, and `more`. */
+const shownOf = (session, ...more) => JSON.stringify([session, session.domains.map((id) => domainById(id)?.name), ...more]);
+
 /** A button showing `content`, a word or an icon, that says `label` when asked. */
 function button(className, content, label, act) {
   const node = el("button", { className, type: "button", title: label }, content);
@@ -673,6 +695,7 @@ function sessionRow(session, domain) {
   const row = el("li", { className: "session" }, title, tools, folder, when, chips(session, domain));
   row.addEventListener("dblclick", (event) => !event.target.closest("button, input") && rename(title, renamer(null, session)));
   carriable(row, () => ({ session, assignOnly: true }));
+  row.mark = () => (when.textContent = ago(session.updated));
   return row;
 }
 
@@ -719,15 +742,15 @@ function renderPanel() {
     domain.sessions.length === count
       ? `${count} ${count === 1 ? "session" : "sessions"}`
       : `${count} here, ${domain.sessions.length} with subdomains`;
-  const gone = missing.filter(shown).map((session) => {
+  const gone = (session) => {
     const text = `Missing session ${session.id.slice(0, 8)}`;
     const tools = here(session) && el("div", { className: "tools" }, removeButton(domain.id, session));
     return el("li", { className: "session missing" }, el("div", { className: "title", textContent: text }), tools);
-  });
-  $("domain-sessions").replaceChildren(
-    ...sessions.filter(shown).map((session) => sessionRow(session, domain.id)),
-    ...gone,
-  );
+  };
+  fillRows($("domain-sessions"), [
+    ...sessions.filter(shown).map((session) => [shownOf(session, domain.id), () => sessionRow(session, domain.id)]),
+    ...missing.filter(shown).map((session) => [shownOf(session, domain.id, "missing"), () => gone(session)]),
+  ]);
 }
 
 $("domain-name").addEventListener("change", async () => {
@@ -836,7 +859,7 @@ function renderPicker() {
   const rows = state.snapshot.sessions
     .filter((session) => !session.domains.includes(domain.id) && (!state.pickAgent || session.agent === state.pickAgent))
     .filter((session) => matches(session, $("picker-search").value))
-    .map((session) => {
+    .map((session) => [shownOf(session), () => {
       const key = keyOf(session);
       const title = el("div", { className: "title", textContent: session.title, title: session.title });
       const when = el("div", { className: "when", textContent: ago(session.updated) });
@@ -844,6 +867,7 @@ function renderPicker() {
       const row = el("li", { className: "session pick", tabIndex: 0 }, title, when, folder, chips(session));
       row.setAttribute("role", "option");
       const mark = () => {
+        when.textContent = ago(session.updated);
         row.classList.toggle("selected", state.picked.has(key));
         row.setAttribute("aria-selected", String(state.picked.has(key)));
       };
@@ -852,16 +876,15 @@ function renderPicker() {
         mark();
         countPicked();
       };
-      mark();
       row.addEventListener("click", tick);
       row.addEventListener("keydown", (event) => {
         if (event.key !== " " && event.key !== "Enter") return;
         event.preventDefault();
         tick();
       });
-      return row;
-    });
-  $("picker-list").replaceChildren(...rows);
+      return Object.assign(row, { mark });
+    }]);
+  fillRows($("picker-list"), rows);
   $("picker-note").textContent = rows.length ? "" : "No session matches.";
   countPicked();
 }
