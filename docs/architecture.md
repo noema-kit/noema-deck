@@ -89,7 +89,8 @@ A pane runs one command on a pseudoterminal: an agent on a session, or the user'
 - **Ending.** A pane ends when its terminal closes, or shortly after its process exits if something it started holds the terminal open.
 - **Many panes.** Any number can run. The interface keeps reading those out of sight too, which is how it knows a session is active.
 - **Reading waits.** The interface asks for output and the answer comes when there is some, or after twenty seconds.
-- **Environment.** A desktop app starts without a terminal's `PATH`. Deck asks the login shell for its environment once, at startup, and runs every pane with it, minus the variables of whatever terminal started Deck, and with `TERM=xterm-256color`, `COLORTERM=truecolor` and `TERM_PROGRAM=NoemaDeck`.
+- **Writing.** Each pane has a lock of its own for writes, so a program that stops reading holds up only its own pane.
+- **Environment.** A desktop app starts without a terminal's `PATH`. Deck asks the login shell for its environment at startup, and again later if it did not answer in time, and runs every pane with it, minus the variables of whatever terminal started Deck, and with `TERM=xterm-256color`, `COLORTERM=truecolor` and `TERM_PROGRAM=NoemaDeck`.
 - **Drawing.** Each terminal is xterm.js drawing through WebGL, and through plain elements when WebGL is unavailable. The page answers a program's question about light and dark (mode 2031) itself.
 
 ## Usage

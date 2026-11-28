@@ -308,8 +308,11 @@ fn run(program: &str, args: &[&str], env: &[(&str, Option<&str>)]) -> Option<Vec
     loop {
         match child.try_wait() {
             Ok(Some(status)) if status.success() => {
+                // Something it left running may go on printing, so this stops in time too.
                 let mut printed = Vec::new();
-                while let Ok(chunk) = chunks.recv_timeout(Duration::from_millis(300)) {
+                while started.elapsed() < WAIT
+                    && let Ok(chunk) = chunks.recv_timeout(Duration::from_millis(300))
+                {
                     printed.extend(chunk);
                 }
                 return Some(printed);

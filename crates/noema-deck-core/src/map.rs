@@ -188,10 +188,21 @@ impl Map {
             return Ok(Plan { key: SessionKey { agent, id }, launch, unknown: None });
         }
         let launch = agent::start(agent, &folder)?;
+        let canonical = fs::canonicalize(&folder).unwrap_or_else(|_| folder.clone());
+        // A session is known by being the first new one in its folder, so a
+        // second could take the first one's ID.
+        let waiting = self.started.iter().any(|started| {
+            started.key.agent == agent
+                && started.unknown.as_ref().is_some_and(|unknown| unknown.folder == canonical)
+        });
+        ensure!(
+            !waiting,
+            "A new session of this agent in this folder still waits for its first prompt. Give it one, or start this one in another folder."
+        );
         self.refresh()?;
         let listed = self.sessions.iter().filter(|session| session.key.agent == agent);
         let unknown = Unknown {
-            folder: fs::canonicalize(&folder).unwrap_or(folder),
+            folder: canonical,
             listed: listed.map(|session| session.key.id.clone()).collect(),
         };
         // A stand-in until the agent has chosen the ID.
@@ -589,6 +600,24 @@ mod tests {
         assert_eq!(named["title"], "Named");
         assert!(sessions.iter().all(|session| session["id"] != json!(given.id)));
         assert_eq!(snapshot["last_agent"], "codex");
+        Ok(())
+    }
+
+    #[test]
+    fn a_second_new_session_in_a_waiting_folder_is_refused() -> Result<()> {
+        let folder = tempfile::tempdir()?;
+        let mut map = map(folder.path())?;
+        let top = map.add_domain("Top", None)?;
+        let work = fs::canonicalize(folder.path())?;
+        let work = work.to_str().context("folder name")?;
+        let plan = map.plan_start(top, Agent::Codex, work, None)?;
+        map.record_start(top, plan, PANE, None)?;
+
+        let refused = map.plan_start(top, Agent::Codex, work, None);
+
+        assert!(refused.is_err_and(|error| error.to_string().contains("first prompt")));
+        assert!(map.plan_start(top, Agent::Antigravity, work, None).is_ok());
+        assert!(map.plan_start(top, Agent::Claude, work, None).is_ok());
         Ok(())
     }
 

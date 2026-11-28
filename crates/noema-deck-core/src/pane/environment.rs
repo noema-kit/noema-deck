@@ -13,12 +13,17 @@ use std::{
 /// whatever its profile prints.
 const MARK: &str = "\0noema-deck-environment\0";
 
-/// The environment of the user's login shell, read once. A desktop app starts
-/// without the `PATH` a terminal has, and the shell's profile is where the
-/// user set it. `None` when the shell would not say.
+/// The environment of the user's login shell, read once it answers. A
+/// desktop app starts without the `PATH` a terminal has, and the shell's
+/// profile is where the user set it. `None` while the shell would not say,
+/// in which case it is asked again next time, as a slow profile may answer then.
 pub(crate) fn login() -> Option<&'static [(String, String)]> {
-    static ENVIRONMENT: OnceLock<Option<Vec<(String, String)>>> = OnceLock::new();
-    ENVIRONMENT.get_or_init(ask_shell).as_deref()
+    static ENVIRONMENT: OnceLock<Vec<(String, String)>> = OnceLock::new();
+    if let Some(environment) = ENVIRONMENT.get() {
+        return Some(environment);
+    }
+    let environment = ask_shell()?;
+    Some(ENVIRONMENT.get_or_init(|| environment))
 }
 
 fn ask_shell() -> Option<Vec<(String, String)>> {

@@ -63,7 +63,9 @@ pub struct Panes {
 
 struct Pane {
     master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
+    /// A program that stops reading leaves a write waiting, so each pane's
+    /// writes go through a lock of its own, taken after the panes' lock is let go.
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
     killer: Box<dyn ChildKiller + Send + Sync>,
     output: Arc<Output>,
 }
@@ -88,7 +90,9 @@ impl Panes {
 
         let output = Arc::new(Output::default());
         let pane = Pane {
-            writer: pair.master.take_writer().map_err(|error| anyhow!(error))?,
+            writer: Arc::new(Mutex::new(
+                pair.master.take_writer().map_err(|error| anyhow!(error))?,
+            )),
             killer: child.clone_killer(),
             output: Arc::clone(&output),
             master: pair.master,
@@ -110,16 +114,20 @@ impl Panes {
     }
 
     pub fn write(&self, pane: PaneId, data: &[u8]) -> Result<()> {
-        self.with(pane, |pane| Ok(pane.writer.write_all(data)?))
+        let writer = self.with(pane, |pane| Ok(Arc::clone(&pane.writer)))?;
+        Ok(writer.lock().write_all(data)?)
     }
 
     pub fn resize(&self, pane: PaneId, rows: u16, cols: u16) -> Result<()> {
         self.with(pane, |pane| pane.master.resize(size(rows, cols)).map_err(|error| anyhow!(error)))
     }
 
-    /// Stops the pane's process and forgets the pane.
+    /// Stops the pane's process and forgets the pane. Letting go of a
+    /// terminal can wait on it, so that happens on a thread of its own.
     pub fn close(&self, pane: PaneId) {
-        self.open.lock().remove(&pane);
+        if let Some(pane) = self.open.lock().remove(&pane) {
+            thread::spawn(move || drop(pane));
+        }
     }
 
     fn with<T>(&self, pane: PaneId, act: impl FnOnce(&mut Pane) -> Result<T>) -> Result<T> {

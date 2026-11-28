@@ -45,7 +45,7 @@ The session list runs down the left, and the map or the terminal fills the rest.
 
 ## Sessions
 
-- **New session.** Choose an agent, a domain, a folder and an optional name. The session is assigned at once, and the agent is remembered for next time. Claude Code takes the name as `--name`. Codex and Antigravity choose the session's ID themselves, so Deck follows the first new session of that agent in that folder and names it once the agent has stored it. Each stores a session at its first prompt, so one closed before then is dropped, as is one still waiting when Deck quit.
+- **New session.** Choose an agent, a domain, a folder and an optional name. The session is assigned at once, and the agent is remembered for next time. Claude Code takes the name as `--name`. Codex and Antigravity choose the session's ID themselves, so Deck follows the first new session of that agent in that folder and names it once the agent has stored it. Each stores a session at its first prompt, so one closed before then is dropped, as is one still waiting when Deck quit. While one waits, another new session of that agent in that folder is refused, as Deck could not tell the two apart.
 - **Add existing.** A picker over every agent's whole history, which can show one agent only.
 - **Titles.** The agent's own title or name, else the first prompt, else, for Claude Code, the first command, such as `/login`.
 - **Renaming.** A double click on a row or a pane's title. Deck writes the name where the agent keeps it, as its own renaming does, so both agree.

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use chrono::{DateTime, Days, Local};
+use chrono::{DateTime, Days, Local, NaiveDate};
 use noema_deck_core::{
     agent::Homes,
     usage::{Asker, Ledger, Tokens},
@@ -12,7 +12,8 @@ use noema_deck_core::{
 /// Prints the tokens each agent used in the last `days` days, by model.
 pub fn print(days: u64) -> Result<()> {
     let report = Ledger::default().report(&Homes::find()?)?;
-    let first = Local::now().date_naive() - Days::new(days.max(1) - 1);
+    let today = Local::now().date_naive();
+    let first = today.checked_sub_days(Days::new(days.max(1) - 1)).unwrap_or(NaiveDate::MIN);
     let first = first.format("%Y-%m-%d").to_string();
     let mut used = BTreeMap::<(String, &str), Tokens>::new();
     for day in report.days.iter().filter(|day| day.day >= first) {
