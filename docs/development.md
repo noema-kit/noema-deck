@@ -35,6 +35,10 @@ The self-test drives the map, the session list, terminal panes, a new session, a
 
 By default the local server gives the page to a headless Chrome, so no window opens and nothing takes your focus; `CHROME` names another Chromium browser. `scripts/selftest.sh window` runs it in the real desktop window instead, which also proves what only the window does: its commands, its version and zooming. Run that before a release.
 
+## Screenshots
+
+`scripts/screenshots.sh` retakes the images in `docs/images`. It builds a made-up world, with domains, sessions of every agent, a year of tokens and a profile, and photographs it in a headless Chrome, so nothing of yours shows. It needs `python3` and `node`.
+
 ## Release
 
 Set the version in `Cargo.toml` and `crates/noema-deck/tauri.conf.json`, commit, then push a tag that names it:

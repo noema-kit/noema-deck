@@ -28,7 +28,7 @@ The session list runs down the left, and the map or the terminal fills the rest.
 
 | Part | Content |
 | --- | --- |
-| Session list | New session, new shell and search; the open panes; then every domain as a folder holding its subdomains and its sessions, newest first, each marked with its agent. Both parts fold away. Settings sit at the foot. |
+| Session list | New session, new shell and search; the open panes; then every domain as a folder holding its subdomains and its sessions, newest first, each marked with its agent. Both parts fold away. Your name and picture, and Settings, sit at the foot. |
 | Map | Domains and links, with pan and zoom. Size follows the session count, colour follows recency over three months. |
 | Domain panel | The selected domain's name, parents, subdomains and sessions. |
 | Terminal | Panes tiled in rows and columns. Panes out of sight keep running. |
@@ -82,6 +82,8 @@ Settings open with ⌘, or from the foot of the list, which shows your name and 
 - **Analytics.** The last 7, 30 or 90 days, or a year a week to a bar, for every agent or one: tokens, replies, the share of input read from the prompt cache, and output; tokens by day stacked by agent, with each agent's share; then the sessions or the models that used the most. A session the agent lists opens on a click.
 
 Each reply counts once. Claude Code writes a reply in parts and copies earlier replies into a resumed session, so a reply counts by its message ID. A forked Codex session begins with a copy of the events before the fork, so an event counts by its time and running total. Deck estimates no cost: prices change, and a plan is not billed by the token.
+
+## Themes
 
 **Noema**, the default theme, takes its colours from the Noema Kit mark and draws the map as an ink graph: a dot per domain, deeper for recent work, an open ring when empty. **Galaxy** draws domains as stars on a night sky; [its README](../ui/themes/galaxy/README.md) describes it. [Themes](themes.md) says how to make one.
 
