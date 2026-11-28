@@ -31,7 +31,9 @@ cargo test --workspace
 scripts/selftest.sh
 ```
 
-The self-test opens the real window and drives the map, the session list, terminal panes, a new session, an import, Settings with its Profile and Usage pages, and shortcuts from inside the page. It uses a fixture store, fixture sessions with a reply's tokens each, and stand-ins for Claude Code, Codex and Antigravity, so it reads and changes nothing of yours.
+The self-test drives the map, the session list, terminal panes, a new session, an import, Settings with its Profile and Usage pages, and shortcuts from inside the page. It uses a fixture store, fixture sessions with a reply's tokens each, and stand-ins for Claude Code, Codex and Antigravity, so it reads and changes nothing of yours.
+
+By default the local server gives the page to a headless Chrome, so no window opens and nothing takes your focus; `CHROME` names another Chromium browser. `scripts/selftest.sh window` runs it in the real desktop window instead, which also proves what only the window does: its commands, its version and zooming. Run that before a release.
 
 ## Release
 

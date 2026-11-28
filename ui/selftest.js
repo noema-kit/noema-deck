@@ -1,16 +1,17 @@
-// Drives the interface from inside the real desktop window and reports what
-// happened. `scripts/selftest.sh` starts the app with fixtures in place of the
-// store, the sessions and Claude Code, and only then is this file loaded.
+// Drives the interface from inside the page and reports what happened.
+// `scripts/selftest.sh` serves the page to a headless browser, or opens the
+// real desktop window, with fixtures in place of the store, the sessions and
+// the agents, and only then is this file loaded.
 
-import { map, panes, screenText, setWidth, showList, state } from "./app.js";
+import { map, panes, screenText, send, setWidth, showList, state } from "./app.js";
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const invoke = (command, args) => window.__TAURI__.core.invoke(command, args);
+const tauri = window.__TAURI__;
 
 async function until(what, test, ms = 10000) {
   for (let waited = 0; waited < ms; waited += 50) {
-    const found = test();
+    const found = await test();
     if (found) return found;
     await sleep(50);
   }
@@ -33,7 +34,7 @@ const onScreen = () => document.querySelectorAll(".pane:not([hidden])").length;
 const titles = (list) => [...$(list).querySelectorAll(".title")].map((node) => node.textContent);
 const row = (list, title) =>
   [...$(list).children].find((node) => node.querySelector(".title")?.textContent === title);
-const snapshot = () => invoke("map", { request: { command: "snapshot" } });
+const snapshot = () => send("map", { command: "snapshot" });
 
 /** Unfolds every domain in the list, as its button does. */
 function unfoldTree() {
@@ -276,7 +277,7 @@ const steps = [
     const alpha = panes.find((pane) => pane.title.textContent === "Alpha");
     expect(alpha.node.hidden, "Alpha was still on screen");
     await until("Alpha to settle", () => Date.now() - alpha.born > 5200, 8000);
-    await invoke("pane", { request: { command: "write", args: { pane: alpha.id, data: "ping\r" } } });
+    await send("pane", { command: "write", args: { pane: alpha.id, data: "ping\r" } });
     await until("Alpha to be ready", () => row("open-list", "Alpha")?.querySelector(".dot.ready"), 8000);
     expect($("show-shell").classList.contains("ready"), "the terminal button showed nothing");
     const { open, layout } = (await snapshot()).panes;
@@ -333,8 +334,9 @@ const steps = [
     input.value = "Logs";
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await until("the name in the list", () => titles("open-list").includes("Logs"));
-    const kept = (await snapshot()).panes.open.map((item) => item.name).filter(Boolean);
-    expect(kept.join() === "Logs", `the names kept were ${kept}`);
+    // The name reaches the core apart from the snapshot asked for here, so it may come second.
+    const kept = async () => (await snapshot()).panes.open.map((item) => item.name).filter(Boolean).join();
+    await until("the name kept", async () => (await kept()) === "Logs");
     for (const node of [...$("open-list").querySelectorAll(".close")]) node.click();
     await until("the map", () => $("shell").hidden && !document.querySelector(".pane"));
   }],
@@ -455,7 +457,8 @@ const steps = [
     $("mode-choice").querySelector('[data-mode="system"]').click();
     await until("the default look", () => kept().terminal_font === null && kept().mode === "system");
     $("settings-nav").querySelector('[data-page="about"]').click();
-    await until("the version on the About page", () => /^Version \d+\.\d+\.\d+$/.test($("version").textContent));
+    // Only the desktop app knows its version.
+    if (tauri) await until("the version on the About page", () => /^Version \d+\.\d+\.\d+$/.test($("version").textContent));
     $("close-settings").click();
   }],
   ["a shortcut moves to another key, the core keeps it, and the list's parts fold away", async () => {
@@ -600,5 +603,7 @@ export async function run(hold) {
   results.push(...uncaught.map((message) => `FAIL  uncaught error: ${message}`));
   const failed = results.filter((line) => line.startsWith("FAIL")).length;
   results.push(failed ? `${failed} of ${steps.length} steps failed` : `all ${steps.length} steps passed`);
-  await invoke("selftest_done", { report: results.join("\n"), failed: failed > 0 });
+  const outcome = { report: results.join("\n"), failed: failed > 0 };
+  if (tauri) await tauri.core.invoke("selftest_done", outcome);
+  else await fetch("/selftest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(outcome) });
 }

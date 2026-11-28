@@ -118,7 +118,7 @@ let drawn = ""; // The snapshot on screen, as the text it arrived in.
  * terminal, "usage" for the tokens the agents used, "limits" for how much of
  * each plan is used, "fonts" for the installed typefaces.
  */
-async function send(route, request) {
+export async function send(route, request) {
   if (tauri) {
     try {
       return await tauri.core.invoke(route, { request });

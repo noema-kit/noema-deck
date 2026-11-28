@@ -4,12 +4,17 @@
 //! must be this server's own, which a page reached under another name is not.
 //! And a request must be JSON, which a page from another site cannot send here
 //! without asking first, and this server never grants that.
+//!
+//! `scripts/selftest.sh` serves the page this way to a headless browser, with
+//! `NOEMA_DECK_SELFTEST` set: the page then runs its self-test, and the server
+//! prints the report and exits with its outcome.
 
 use std::{
-    fs,
+    env, fs,
     io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
+    process,
     sync::Arc,
     thread,
     time::Duration,
@@ -22,13 +27,16 @@ use serde_json::json;
 /// The largest request body read. Requests are small; pasted text is the most.
 const BODY_LIMIT: usize = 1 << 20;
 
-/// Serves the interface in `ui` and answers its requests until stopped.
+/// Serves the interface in `ui` and answers its requests until stopped. Port 0
+/// takes any free port.
 pub fn run(deck: Deck, ui: &Path, port: u16) -> Result<()> {
     ensure!(ui.join("index.html").is_file(), "No interface in {}", ui.display());
     let listener =
         TcpListener::bind(("127.0.0.1", port)).with_context(|| format!("Listen on port {port}"))?;
+    let port = listener.local_addr()?.port();
     println!("Serving the map at http://127.0.0.1:{port}");
-    let server = Arc::new(Server { deck, ui: ui.into(), port });
+    let selftest = env::var_os("NOEMA_DECK_SELFTEST").is_some();
+    let server = Arc::new(Server { deck, ui: ui.into(), port, selftest });
     for stream in listener.incoming() {
         let server = Arc::clone(&server);
         // A read waits for a pane's output, so each connection gets a thread.
@@ -45,6 +53,8 @@ struct Server {
     deck: Deck,
     ui: PathBuf,
     port: u16,
+    /// Whether the page runs its self-test.
+    selftest: bool,
 }
 
 /// The parts of a request this server reads.
@@ -101,6 +111,7 @@ impl Server {
                     }
                 }
             }
+            ("POST", "/selftest") if self.selftest && request.is_json => finish(&request.body),
             ("GET", path) if !path.contains("..") => self.file(path),
             _ => Response::text("400 Bad Request"),
         }
@@ -134,10 +145,31 @@ impl Server {
             _ => "application/octet-stream",
         };
         match fs::read(self.ui.join(name)) {
+            // The page runs its self-test once it has loaded, as the desktop
+            // window has it do.
+            Ok(mut body) if self.selftest && name == "index.html" => {
+                body.extend_from_slice(SELFTEST.as_bytes());
+                Response { status: "200 OK", kind, body }
+            }
             Ok(body) => Response { status: "200 OK", kind, body },
             Err(_) => Response::text("404 Not Found"),
         }
     }
+}
+
+/// Starts the self-test in a page that has loaded.
+const SELFTEST: &str = r#"<script type="module">
+addEventListener("load", () => import("./selftest.js").then((test) => test.run(false)));
+</script>
+"#;
+
+/// Prints the self-test's report and exits, failing if a step failed.
+fn finish(body: &[u8]) -> Response {
+    let Ok(outcome) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return Response::text("400 Bad Request");
+    };
+    println!("{}", outcome["report"].as_str().unwrap_or_default());
+    process::exit(i32::from(outcome["failed"].as_bool() != Some(false)));
 }
 
 fn read(stream: &TcpStream) -> Result<Request> {

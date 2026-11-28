@@ -1,12 +1,15 @@
 #!/bin/sh
-# Runs the interface's self-test inside the real desktop window. The app gets a
-# fixture store, three fixture Claude Code sessions, one Codex session and one
-# Antigravity conversation, each agent with a reply's tokens and its plan's
-# limits, a small folder tree, stand-ins for the agents and a plain shell, so
-# nothing of yours is read or changed. Pass `hold` to keep a pane open for
-# fifteen seconds partway through.
+# Runs the interface's self-test. By default `noema-deck-cli serve` serves the
+# interface to a headless Chrome, so no window opens; set `CHROME` to pick the
+# browser. Pass `window` to run it in the real desktop window instead, or
+# `hold` to do that and keep a pane open for fifteen seconds partway through.
+# Deck gets a fixture store, three fixture Claude Code sessions, one Codex
+# session and one Antigravity conversation, each agent with a reply's tokens
+# and its plan's limits, a small folder tree, stand-ins for the agents and a
+# plain shell, so nothing of yours is read or changed.
 set -eu
 cd "$(dirname "$0")/.."
+mode=${1:-headless}
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -98,13 +101,62 @@ while read -r line; do echo "got \$line"; done
 EOF
 chmod +x "$work/agy-agent"
 
-CLAUDE_CONFIG_DIR="$work/claude" \
-CODEX_HOME="$work/codex" \
-NOEMA_DECK_STORE="$work/deck.db" \
-NOEMA_DECK_CLAUDE="$work/agent" \
-NOEMA_DECK_CODEX="$work/codex-agent" \
-NOEMA_DECK_ANTIGRAVITY_HOME="$agy" \
-NOEMA_DECK_ANTIGRAVITY="$work/agy-agent" \
-SHELL=/bin/sh \
-NOEMA_DECK_SELFTEST="${1:-run}" \
+export CLAUDE_CONFIG_DIR="$work/claude"
+export CODEX_HOME="$work/codex"
+export NOEMA_DECK_STORE="$work/deck.db"
+export NOEMA_DECK_CLAUDE="$work/agent"
+export NOEMA_DECK_CODEX="$work/codex-agent"
+export NOEMA_DECK_ANTIGRAVITY_HOME="$agy"
+export NOEMA_DECK_ANTIGRAVITY="$work/agy-agent"
+export SHELL=/bin/sh
+export NOEMA_DECK_SELFTEST="$mode"
+
+if [ "$mode" != headless ]; then
     cargo run --quiet -p noema-deck
+    exit
+fi
+
+chrome=${CHROME:-}
+for candidate in \
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" \
+    "$(command -v google-chrome chromium chromium-browser | head -n 1)"; do
+    if [ -z "$chrome" ] && [ -x "$candidate" ]; then chrome=$candidate; fi
+done
+if [ -z "$chrome" ]; then
+    echo "No Chrome to run the self-test in: set CHROME, or pass \`window\`" >&2
+    exit 1
+fi
+
+cargo build --quiet -p noema-deck-cli
+# The server takes any free port and names it on its first line. A page
+# that goes away breaks the reads it was waiting on, which the server notes;
+# those notes are shown only when the run fails.
+target/debug/noema-deck-cli serve --ui ui --port 0 > "$work/report" 2> "$work/notes" &
+server=$!
+until url=$(grep -o 'http://[^ ]*' "$work/report"); do
+    kill -0 "$server" 2> /dev/null || exit 1
+    sleep 0.1
+done
+"$chrome" --headless=new --user-data-dir="$work/chrome" --window-size=1280,820 \
+    --no-first-run --no-default-browser-check "$url" > /dev/null 2>&1 &
+browser=$!
+
+# The page reports when every step has run, and the server then exits.
+waited=0
+while kill -0 "$server" 2> /dev/null; do
+    if [ "$waited" -ge 300 ]; then
+        echo "The self-test did not finish in five minutes" >&2
+        kill "$server"
+    fi
+    sleep 1
+    waited=$((waited + 1))
+done
+status=0
+wait "$server" || status=$?
+kill "$browser" 2> /dev/null || true
+wait "$browser" 2> /dev/null || true
+sed 1d "$work/report"
+[ "$status" -eq 0 ] || cat "$work/notes" >&2
+exit "$status"

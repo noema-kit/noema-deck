@@ -69,6 +69,7 @@ pub enum Command {
     Domain(DomainCommand),
     /// Serve the interface to a browser on this machine.
     Serve {
+        /// Port to listen on, or 0 for any free one.
         #[arg(long, default_value_t = 4270)]
         port: u16,
         /// Folder holding the interface files.

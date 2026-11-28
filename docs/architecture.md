@@ -123,7 +123,7 @@ So the pages open on figures at hand:
 
 ## Local server
 
-`noema-deck serve` gives the same interface to a browser. It listens on this machine only. Because a pane can type into an agent, it answers only its own page and only JSON requests, which a page from another site cannot send.
+`noema-deck serve` gives the same interface to a browser. It listens on this machine only. Because a pane can type into an agent, it answers only its own page and only JSON requests, which a page from another site cannot send. With `NOEMA_DECK_SELFTEST` set, the page runs the self-test, and the server prints its report and exits with its outcome.
 
 ## Claude Code
 
