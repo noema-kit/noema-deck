@@ -346,6 +346,46 @@ const steps = [
     type("exit\r");
     await until("the shell's pane to close", () => onScreen() === 1 && titles("open-list").join() === "Alpha");
   }],
+  ["a program that says what it is doing marks its pane, and one that waits for an answer stands out", async () => {
+    document.querySelector('.pane:not([hidden]) [title^="Split down"]').click();
+    await until("a shell below", () => onScreen() === 2 && titles("open-list").includes("Shell"));
+    const input = [...document.querySelectorAll(".pane .xterm-helper-textarea")][1];
+    const type = (data) => input.dispatchEvent(new InputEvent("input", { data, inputType: "insertText", bubbles: true }));
+    const says = (report) => `printf '\\033]7501;${report}\\033\\\\'`;
+    const shell = () => screenText(1);
+    const row = () => [...$("open-list").querySelectorAll(".title")].find((node) => node.textContent === "Shell").closest(".node");
+    const mood = () => row().querySelector(".dot").className.replace("dot ", "");
+    await until("the shell's prompt", () => shell().includes("$"));
+
+    // A program asks whether its reports are read, and Deck answers in ten characters.
+    type(`${says("?")}; IFS= read -rs -n 10 -t 5 heard; echo "heard-\${#heard}"\r`);
+    await until("Deck's answer", () => shell().includes("heard-10"));
+
+    type(`${says("state=working:app=stand-in")}; sleep 30\r`);
+    await until("the pane at work", () => mood() === "active");
+    await sleep(3500); // Longer than a pane without reports takes to count as quiet.
+    expect(mood() === "active", `a silent program at work shows as ${mood()}`);
+
+    // Interrupting the sleep leaves the shell free to report again.
+    type("\x03");
+    type(`${says(`state=blocked:kind=question:msg=${btoa("Red or blue?")}`)}\r`);
+    await until("the pane waiting", () => mood() === "blocked" && $("show-shell").classList.contains("blocked"));
+    const waits = row().querySelector(".kind").title;
+    expect(waits === "Waiting for your answer: Red or blue?", `the pane waits with "${waits}"`);
+
+    // Finished while the map is in view, it is ready, and no longer waits.
+    type(`sleep 1; ${says("state=done")}\r`);
+    $("show-map").click();
+    await until("the pane ready", () => mood() === "ready" && $("show-shell").className.includes("ready"));
+    expect(!$("show-shell").classList.contains("blocked"), "the terminal's button still says a pane waits");
+    $("show-shell").click();
+
+    // A report Deck cannot read changes nothing, and clearing goes back to watching the output.
+    type(`${says("state=napping")}; ${says("state=blocked:id=a b")}; ${says("state=clear")}; echo cleared\r`);
+    await until("the reports cleared", () => shell().includes("cleared") && mood() !== "blocked");
+    type("exit\r");
+    await until("the shell's pane to close", () => onScreen() === 1);
+  }],
   ["a split divides only its own pane, so panes tile in rows and columns", async () => {
     document.querySelector('.pane:not([hidden]) [title^="Split down"]').click();
     await until("a shell below", () => onScreen() === 2);

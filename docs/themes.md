@@ -30,7 +30,7 @@ Tokens on `:root`, per mode under `:root[data-mode="light"]` and `:root[data-mod
 | `--canvas`, `--surface`, `--raised` | The page behind the map, the docked plates and terminals, and hover and chips. |
 | `--ink`, `--muted` | Words, and secondary words. |
 | `--accent`, `--on-accent`, `--accent-line`, `--accent-wash` | The one accent, words on it, its borders, and its tint over an area such as a chosen row. |
-| `--danger`, `--danger-wash` | Refusals and deleting. |
+| `--danger`, `--danger-wash` | Refusals, deleting, and a session that waits for you. |
 | `--live`, `--ready`, `--quiet` | A session's state: active, ready, quiet. |
 | `--line`, `--field`, `--scrim`, `--shadow` | Hairlines, inputs, the veil behind a sheet, and floating pieces' shadow. |
 | `--primary-fill`, `--primary-ink`, `--primary-line` | The main button. Optional: the accent by default. |

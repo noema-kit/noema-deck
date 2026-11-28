@@ -6,6 +6,7 @@ import { actionFor, label as labelKeys, setMoved } from "./keys.js";
 import { restyleMonitor, setupMonitor, showMonitor } from "./monitor.js";
 import { setupProfile, showProfile } from "./profile.js";
 import { closeSettings, openSettings, setupSettings } from "./settings.js";
+import { KNOWN, Status, waits } from "./status.js";
 import { setupUsage } from "./usage.js";
 import { apply, loadThemes, look, watch } from "./theme.js";
 
@@ -664,20 +665,39 @@ $("add-root").addEventListener("click", () => {
 /** Whether a pane is where the person can see it. */
 const seen = (pane) => state.view === "shell" && shown.includes(pane) && document.hasFocus();
 
-/** Marks each open session as active, quiet, ready or ended. Ready is quiet after output nobody saw. */
+/**
+ * How an open pane is doing. A program that reports its state is taken at
+ * its word: active while it works, blocked while it waits for the person,
+ * and ready once it finished out of sight. Of one that reports nothing Deck
+ * knows only its output: active while it prints, and ready when it fell
+ * quiet after output nobody saw.
+ */
+function moodOf(pane, now) {
+  if (pane.ended) return "ended";
+  const said = pane.status.now?.state;
+  if (said === "blocked") return "blocked";
+  if (said) return said === "working" ? "active" : said !== "idle" && pane.fresh ? "ready" : "quiet";
+  return now - pane.heard < QUIET ? "active" : pane.unseen ? "ready" : "quiet";
+}
+
+/** Marks each open session as active, blocked, ready, quiet or ended. */
 function tick() {
   const now = Date.now();
-  let ready = false;
-  const live = []; // Domains holding a session that printed something just now.
+  const moods = new Set();
+  const live = []; // Domains holding a session at work just now.
   for (const pane of panes) {
-    if (seen(pane)) pane.unseen = false;
-    const quiet = now - pane.heard >= QUIET;
-    const mood = pane.ended ? "ended" : !quiet ? "active" : pane.unseen ? "ready" : "quiet";
-    ready ||= mood === "ready";
-    for (const dot of pane.dots ?? []) dot.className = `dot ${mood}`;
+    if (seen(pane)) pane.unseen = pane.fresh = false;
+    const mood = moodOf(pane, now);
+    moods.add(mood);
+    for (const dot of pane.dots ?? []) {
+      dot.className = `dot ${mood}`;
+      dot.parentElement.title = mood === "blocked" ? waits(pane.status.now) : "";
+    }
     if (mood === "active") live.push(...(sessionByKey(pane.key)?.domains ?? []));
   }
-  $("show-shell").classList.toggle("ready", ready);
+  // The terminal's button says that a session waits, else that one finished out of sight.
+  $("show-shell").classList.toggle("blocked", moods.has("blocked"));
+  $("show-shell").classList.toggle("ready", moods.has("ready") && !moods.has("blocked"));
   map.light(live);
 }
 
@@ -1467,6 +1487,7 @@ function addPane(name, folder, key, agent = key?.split("/")[0]) {
   const body = el("div", { className: "term" });
   const gap = el("span", { className: "gap" });
   const pane = { serial: ++serials, id: null, key, agent, folder, title, gap, dots: [], ended: false, heard: Date.now(), sent: Promise.resolve() };
+  pane.status = new Status();
   pane.locate = button("", icon("locate"), "Show on the map", () => locate(pane));
   pane.again = button("", icon("again"), "Run again", () => restart(pane));
   const right = button("", icon("right"), "Split right with a shell", () => split("row", pane));
@@ -1519,6 +1540,26 @@ function addPane(name, folder, key, agent = key?.split("/")[0]) {
     if (params[0] !== 996) return false;
     if (live()) type(pane, scheme());
     return true;
+  });
+  // A program asks whether Deck reads what it is doing (OSC 7501), and says
+  // so from then on. What it finished or asks for out of sight is news.
+  pane.term.parser.registerOscHandler(7501, (body) => {
+    if (body.trim() === "?") {
+      if (live()) type(pane, KNOWN);
+    } else if (pane.status.take(body)) {
+      pane.fresh = ["done", "error"].includes(pane.status.now?.state) && !seen(pane);
+      tick();
+    }
+    return true;
+  });
+  // What was under way is over once the shell prompts again (OSC 133 A), and a reset forgets everything.
+  pane.term.parser.registerOscHandler(133, (body) => {
+    if (body.startsWith("A")) pane.status.rest();
+    return false;
+  });
+  pane.term.parser.registerEscHandler({ final: "c" }, () => {
+    pane.status.clear();
+    return false;
   });
   pane.term.onResize(({ rows, cols }) => {
     if (live()) paneCall("resize", { pane: pane.id, rows, cols }).catch(() => {});

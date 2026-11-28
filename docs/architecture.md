@@ -21,7 +21,7 @@ flowchart LR
 | `noema-deck-core` | Everything Deck knows and does. No window, no arguments, no printing. |
 | `noema-deck-cli` | The commands, what they print, and a local server that gives the interface to a browser. |
 | `noema-deck` | The Tauri window. Given a command, it hands it to the CLI library, so one program is both the app and the command-line tool. |
-| `ui/` | Plain HTML, CSS and JavaScript with no build step. `app.js` sends requests and fills the lists, `map.js` runs the map and hands its drawing to the theme's painter, `theme.js` and `settings.js` put on and change the look, `monitor.js` draws the Monitor view, `usage.js` draws the Usage and Profile pages of Settings, `profile.js` keeps the name and picture, and `keys.js` holds the shortcuts. Each theme is a folder in `ui/themes/`. |
+| `ui/` | Plain HTML, CSS and JavaScript with no build step. `app.js` sends requests and fills the lists, `map.js` runs the map and hands its drawing to the theme's painter, `theme.js` and `settings.js` put on and change the look, `status.js` reads what the programs in panes say they are doing, `monitor.js` draws the Monitor view, `usage.js` draws the Usage and Profile pages of Settings, `profile.js` keeps the name and picture, and `keys.js` holds the shortcuts. Each theme is a folder in `ui/themes/`. |
 
 ## Core modules
 
@@ -93,6 +93,7 @@ A pane runs one command on a pseudoterminal: an agent on a session, or the user'
 - **Reading waits.** The interface asks for output and the answer comes when there is some, or after twenty seconds.
 - **Writing.** Each pane has a lock of its own for writes, so a program that stops reading holds up only its own pane.
 - **Environment.** A desktop app starts without a terminal's `PATH`. Deck asks the login shell for its environment at startup, and again later if it did not answer in time, and runs every pane with it, minus the variables of whatever terminal started Deck, and with `TERM=xterm-256color`, `COLORTERM=truecolor` and `TERM_PROGRAM=NoemaDeck`.
+- **State.** A program may tell its terminal what it is doing, by the [Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status), OSC 7501: idle, working, blocked on a permission, a question or a sign-in, done, or failed. It first asks whether the terminal reads such reports, and reports only once answered, so the page answers, and `status.js` keeps each pane's reports. Deck writes nothing to an agent's settings for this and never reads the screen to guess. Claude Code 2.1.332 and Antigravity 1.5.19 were seen to ask and report. Codex 0.171.0 holds the code but sent nothing, so its panes, like a shell's, go by their output.
 - **Drawing.** Each terminal is xterm.js drawing through WebGL, and through plain elements when WebGL is unavailable. The page answers a program's question about light and dark (mode 2031) itself.
 
 ## Usage
